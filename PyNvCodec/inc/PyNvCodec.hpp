@@ -89,9 +89,13 @@ public:
 #ifdef GENERATE_PYTHON_BINDINGS
   bool DownloadSingleSurface(std::shared_ptr<Surface> surface,
                              py::array_t<uint8_t> &frame);
+  bool DownloadSingleSurface(std::shared_ptr<Surface> surface,
+                             py::array_t<float> &frame);
 #else
   bool DownloadSingleSurface(std::shared_ptr<Surface> surface,
                              std::vector<uint8_t> &frame);
+  bool DownloadSingleSurface(std::shared_ptr<Surface> surface,
+                             std::vector<float> &frame);                             
 #endif
 };
 

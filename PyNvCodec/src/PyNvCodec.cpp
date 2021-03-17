@@ -240,6 +240,36 @@ bool PySurfaceDownloader::DownloadSingleSurface(shared_ptr<Surface> surface,
   return false;
 }
 
+#ifdef GENERATE_PYTHON_BINDINGS
+bool PySurfaceDownloader::DownloadSingleSurface(shared_ptr<Surface> surface,
+                                                py::array_t<float> &frame) {
+#else
+bool PySurfaceDownloader::DownloadSingleSurface(shared_ptr<Surface> surface,
+                                                std::vector<float> &frame) {
+#endif
+  upDownloader->SetInput(surface.get(), 0U);
+  if (TASK_EXEC_FAIL == upDownloader->Execute()) {
+    return false;
+  }
+
+  auto *pRawFrame = (Buffer *)upDownloader->GetOutput(0U);
+  if (pRawFrame) {
+    auto const downloadSize = pRawFrame->GetRawMemSize();
+    auto const downloadSizeFloat = downloadSize / 4;
+    if (downloadSizeFloat != frame.size()) {
+      frame.resize({downloadSizeFloat}, false);
+    }
+#ifdef GENERATE_PYTHON_BINDINGS
+    memcpy(frame.mutable_data(), pRawFrame->GetRawMemPtr(), downloadSize);
+#else
+    memcpy(frame.data(), pRawFrame->GetRawMemPtr(), downloadSize);
+#endif
+    return true;
+  }
+
+  return false;
+}
+
 PySurfaceConverter::PySurfaceConverter(uint32_t width, uint32_t height,
                                        Pixel_Format inFormat,
                                        Pixel_Format outFormat, uint32_t gpuID)
@@ -1283,6 +1313,8 @@ PYBIND11_MODULE(PyNvCodec, m) {
       .value("YCBCR", Pixel_Format::YCBCR)
       .value("YUV444", Pixel_Format::YUV444)
       .value("UNDEFINED", Pixel_Format::UNDEFINED)
+      .value("RGB_32F", Pixel_Format::RGB_32F)
+      .value("RGB_32F_PLANAR", Pixel_Format::RGB_32F_PLANAR)
       .export_values();
 
   py::enum_<cudaVideoCodec>(m, "CudaVideoCodec")
@@ -1491,7 +1523,13 @@ PYBIND11_MODULE(PyNvCodec, m) {
       .def(py::init<uint32_t, uint32_t, Pixel_Format, uint32_t>())
       .def("Format", &PySurfaceDownloader::GetFormat)
       .def("DownloadSingleSurface",
-           &PySurfaceDownloader::DownloadSingleSurface);
+           py::overload_cast<std::shared_ptr<Surface>, py::array_t<uint8_t> &>(
+               &PySurfaceDownloader::DownloadSingleSurface),
+           py::arg("surface"), py::arg("frame").noconvert(true))
+      .def("DownloadSingleSurface",
+           py::overload_cast<std::shared_ptr<Surface>, py::array_t<float> &>(
+               &PySurfaceDownloader::DownloadSingleSurface),
+           py::arg("surface"), py::arg("frame").noconvert(true));
 
   py::class_<PySurfaceConverter>(m, "PySurfaceConverter")
       .def(py::init<uint32_t, uint32_t, Pixel_Format, Pixel_Format, uint32_t>())
