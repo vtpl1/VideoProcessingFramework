@@ -21,9 +21,15 @@
 #include <chrono>
 #include <cuda_runtime.h>
 #include <mutex>
+#ifdef GENERATE_PYTHON_BINDINGS
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#else
+#include <memory>
+#include <iostream>
+#include <vector>
+#endif
 #include <sstream>
 
 extern "C" {
@@ -32,7 +38,9 @@ extern "C" {
 }
 
 using namespace VPF;
+#ifdef GENERATE_PYTHON_BINDINGS
 namespace py = pybind11;
+#endif
 
 struct MotionVector {
   int source;
@@ -60,7 +68,11 @@ public:
 
   Pixel_Format GetFormat();
 
+#ifdef GENERATE_PYTHON_BINDINGS
   std::shared_ptr<Surface> UploadSingleFrame(py::array_t<uint8_t> &frame);
+#else
+  std::shared_ptr<Surface> UploadSingleFrame(std::vector<uint8_t> &frame);
+#endif
 };
 
 class PySurfaceDownloader {
@@ -74,8 +86,13 @@ public:
 
   Pixel_Format GetFormat();
 
+#ifdef GENERATE_PYTHON_BINDINGS
   bool DownloadSingleSurface(std::shared_ptr<Surface> surface,
                              py::array_t<uint8_t> &frame);
+#else
+  bool DownloadSingleSurface(std::shared_ptr<Surface> surface,
+                             std::vector<uint8_t> &frame);
+#endif
 };
 
 class PySurfaceConverter {
@@ -114,7 +131,11 @@ public:
   PyFFmpegDemuxer(const std::string &pathToFile,
                   const std::map<std::string, std::string> &ffmpeg_options);
 
+#ifdef GENERATE_PYTHON_BINDINGS
   bool DemuxSinglePacket(py::array_t<uint8_t> &packet);
+#else
+  bool DemuxSinglePacket(std::vector<uint8_t> &packet);
+#endif
 
   uint32_t Width() const;
 
@@ -134,9 +155,15 @@ public:
   PyFfmpegDecoder(const std::string &pathToFile,
                   const std::map<std::string, std::string> &ffmpeg_options);
 
+#ifdef GENERATE_PYTHON_BINDINGS
   bool DecodeSingleFrame(py::array_t<uint8_t> &frame);
 
   py::array_t<MotionVector> GetMotionVectors();
+#else
+  bool DecodeSingleFrame(std::vector<uint8_t> &frame);
+
+  std::vector<MotionVector> GetMotionVectors();
+#endif
 };
 
 class PyNvDecoder {
@@ -176,6 +203,7 @@ public:
 
   Pixel_Format GetPixelFormat() const;
 
+#ifdef GENERATE_PYTHON_BINDINGS
   std::shared_ptr<Surface> DecodeSurfaceFromPacket(py::array_t<uint8_t> &packet,
                                                    py::array_t<uint8_t> &sei);
 
@@ -184,8 +212,7 @@ public:
 
   std::shared_ptr<Surface> DecodeSingleSurface(py::array_t<uint8_t> &sei);
 
-  std::shared_ptr<Surface> DecodeSingleSurface();
-
+  
   bool DecodeSingleFrame(py::array_t<uint8_t> &frame,
                          py::array_t<uint8_t> &sei);
 
@@ -199,29 +226,73 @@ public:
                              py::array_t<uint8_t> &packet);
 
   bool FlushSingleFrame(py::array_t<uint8_t> &frame);
+#else
+  std::shared_ptr<Surface> DecodeSurfaceFromPacket(std::vector<uint8_t> &packet,
+                                                   std::vector<uint8_t> &sei);
 
+  std::shared_ptr<Surface>
+  DecodeSurfaceFromPacket(std::vector<uint8_t> &packet);
+
+  std::shared_ptr<Surface> DecodeSingleSurface(std::vector<uint8_t> &sei);
+
+
+  bool DecodeSingleFrame(std::vector<uint8_t> &frame,
+                         std::vector<uint8_t> &sei);
+
+  bool DecodeSingleFrame(std::vector<uint8_t> &frame);
+
+  bool DecodeFrameFromPacket(std::vector<uint8_t> &frame,
+                             std::vector<uint8_t> &packet,
+                             std::vector<uint8_t> &sei);
+
+  bool DecodeFrameFromPacket(std::vector<uint8_t> &frame,
+                             std::vector<uint8_t> &packet);
+
+  bool FlushSingleFrame(std::vector<uint8_t> &frame);
+#endif
+
+  std::shared_ptr<Surface> DecodeSingleSurface();
   std::shared_ptr<Surface> FlushSingleSurface();
 
 private:
   bool DecodeSurface(struct DecodeContext &ctx);
 
+#ifdef GENERATE_PYTHON_BINDINGS
   Surface *getDecodedSurfaceFromPacket(py::array_t<uint8_t> *pPacket,
                                        bool &hw_decoder_failure);
+#else
+  Surface *getDecodedSurfaceFromPacket(std::vector<uint8_t> *pPacket,
+                                       bool &hw_decoder_failure);
+#endif
 };
 
 struct EncodeContext {
   std::shared_ptr<Surface> rawSurface;
+#ifdef GENERATE_PYTHON_BINDINGS
   py::array_t<uint8_t> *pPacket;
   const py::array_t<uint8_t> *pMessageSEI;
+#else
+  std::vector<uint8_t> *pPacket;
+  const std::vector<uint8_t> *pMessageSEI;
+#endif
   bool sync;
   bool append;
 
+#ifdef GENERATE_PYTHON_BINDINGS
   EncodeContext(std::shared_ptr<Surface> spRawSurface,
                 py::array_t<uint8_t> *packet,
                 const py::array_t<uint8_t> *messageSEI, bool is_sync,
                 bool is_append)
       : rawSurface(spRawSurface), pPacket(packet), pMessageSEI(messageSEI),
         sync(is_sync), append(is_append) {}
+#else
+  EncodeContext(std::shared_ptr<Surface> spRawSurface,
+                std::vector<uint8_t> *packet,
+                const std::vector<uint8_t> *messageSEI, bool is_sync,
+                bool is_append)
+      : rawSurface(spRawSurface), pPacket(packet), pMessageSEI(messageSEI),
+        sync(is_sync), append(is_append) {}
+#endif
 };
 
 class PyNvEncoder {
@@ -243,6 +314,7 @@ public:
   PyNvEncoder(const std::map<std::string, std::string> &encodeOptions,
               int gpuOrdinal, Pixel_Format format = NV12, bool verbose = false);
 
+#ifdef GENERATE_PYTHON_BINDINGS
   bool EncodeSurface(std::shared_ptr<Surface> rawSurface,
                      py::array_t<uint8_t> &packet,
                      const py::array_t<uint8_t> &messageSEI, bool sync,
@@ -282,6 +354,47 @@ public:
                    bool append);
 
   bool Flush(py::array_t<uint8_t> &packets);
+#else
+  bool EncodeSurface(std::shared_ptr<Surface> rawSurface,
+                     std::vector<uint8_t> &packet,
+                     const std::vector<uint8_t> &messageSEI, bool sync,
+                     bool append);
+
+  bool EncodeSurface(std::shared_ptr<Surface> rawSurface,
+                     std::vector<uint8_t> &packet,
+                     const std::vector<uint8_t> &messageSEI, bool sync);
+
+  bool EncodeSurface(std::shared_ptr<Surface> rawSurface,
+                     std::vector<uint8_t> &packet, bool sync);
+
+  bool EncodeSurface(std::shared_ptr<Surface> rawSurface,
+                     std::vector<uint8_t> &packet,
+                     const std::vector<uint8_t> &messageSEI);
+
+  bool EncodeSurface(std::shared_ptr<Surface> rawSurface,
+                     std::vector<uint8_t> &packet);
+
+  bool EncodeFrame(std::vector<uint8_t> &inRawFrame,
+                   std::vector<uint8_t> &packet);
+
+  bool EncodeFrame(std::vector<uint8_t> &inRawFrame,
+                   std::vector<uint8_t> &packet,
+                   const std::vector<uint8_t> &messageSEI);
+
+  bool EncodeFrame(std::vector<uint8_t> &inRawFrame,
+                   std::vector<uint8_t> &packet, bool sync);
+
+  bool EncodeFrame(std::vector<uint8_t> &inRawFrame,
+                   std::vector<uint8_t> &packet,
+                   const std::vector<uint8_t> &messageSEI, bool sync);
+
+  bool EncodeFrame(std::vector<uint8_t> &inRawFrame,
+                   std::vector<uint8_t> &packet,
+                   const std::vector<uint8_t> &messageSEI, bool sync,
+                   bool append);
+  
+  bool Flush(std::vector<uint8_t> &packets);
+#endif
 
 private:
   bool EncodeSingleSurface(EncodeContext &ctx);
