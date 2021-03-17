@@ -31,4 +31,7 @@ target_include_directories(NvCodec
 target_link_libraries(NvCodec
     PUBLIC TC)
 
+set_property(TARGET PyNvCodec PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)
+set_property(TARGET NvCodec PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)
+
 install(FILES $<TARGET_FILE:PyNvCodec>	                                DESTINATION bin)

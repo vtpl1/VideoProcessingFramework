@@ -6,10 +6,8 @@
 #include "PyNvCodec.hpp"
 #include "utils.hpp"
 int main(int argc, char const* argv[]) {
-  std::string input("./../../videos/1_2.mp4");
-  std::string output("./1.yuv");
+  std::string input("./../../../videos/1.AVI");
   int gpu_id = 0;
-  std::ofstream fout(output, std::ios::binary);
   std::unique_ptr<PyNvDecoder> nv_dec;
   std::unique_ptr<PySurfaceConverter> from_nv12_to_yuv;
   std::unique_ptr<PySurfaceResizer> yuv_resizer;

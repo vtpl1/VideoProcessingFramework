@@ -51,13 +51,13 @@ struct MotionVector {
   int motion_scale;
 };
 
-class HwResetException : public std::runtime_error {
+class DllExport HwResetException : public std::runtime_error {
 public:
   HwResetException(std::string &str) : std::runtime_error(str) {}
   HwResetException() : std::runtime_error("HW reset") {}
 };
 
-class PyFrameUploader {
+class DllExport PyFrameUploader {
   std::unique_ptr<CudaUploadFrame> uploader;
   uint32_t gpuID = 0U, surfaceWidth, surfaceHeight;
   Pixel_Format surfaceFormat;
@@ -75,7 +75,7 @@ public:
 #endif
 };
 
-class PySurfaceDownloader {
+class DllExport PySurfaceDownloader {
   std::unique_ptr<CudaDownloadSurface> upDownloader;
   uint32_t gpuID = 0U, surfaceWidth, surfaceHeight;
   Pixel_Format surfaceFormat;
@@ -99,7 +99,7 @@ public:
 #endif
 };
 
-class PySurfaceConverter {
+class DllExport PySurfaceConverter {
   std::unique_ptr<ConvertSurface> upConverter;
   Pixel_Format outputFormat;
   uint32_t gpuID;
@@ -113,7 +113,7 @@ public:
   Pixel_Format GetFormat();
 };
 
-class PySurfaceResizer {
+class DllExport PySurfaceResizer {
   std::unique_ptr<ResizeSurface> upResizer;
   Pixel_Format outputFormat;
   uint32_t gpuID;
@@ -127,7 +127,7 @@ public:
   std::shared_ptr<Surface> Execute(std::shared_ptr<Surface> surface);
 };
 
-class PyFFmpegDemuxer {
+class DllExport PyFFmpegDemuxer {
   std::unique_ptr<DemuxFrame> upDemuxer;
 
 public:
@@ -150,7 +150,7 @@ public:
   cudaVideoCodec Codec() const;
 };
 
-class PyFfmpegDecoder {
+class DllExport PyFfmpegDecoder {
   std::unique_ptr<FfmpegDecodeFrame> upDecoder = nullptr;
 
   void *GetSideData(AVFrameSideDataType data_type, size_t &raw_size);
@@ -170,7 +170,7 @@ public:
 #endif
 };
 
-class PyNvDecoder {
+class DllExport PyNvDecoder {
   std::unique_ptr<DemuxFrame> upDemuxer;
   std::unique_ptr<NvdecDecodeFrame> upDecoder;
   std::unique_ptr<PySurfaceDownloader> upDownloader;
@@ -299,7 +299,7 @@ struct EncodeContext {
 #endif
 };
 
-class PyNvEncoder {
+class DllExport PyNvEncoder {
   std::unique_ptr<PyFrameUploader> uploader;
   std::unique_ptr<NvencEncodeFrame> upEncoder;
   uint32_t encWidth, encHeight, gpuID;

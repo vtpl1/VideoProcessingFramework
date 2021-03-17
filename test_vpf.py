@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "build/PyNvCodec"))
-import PyNvCodec as nvc
+
 import PyNvCodec as nvc
 import pytest
 
@@ -216,7 +216,7 @@ def test_vpf_numpy_transform(delete_session_folder, caplog):
 def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
     caplog.set_level(logging.INFO)
     logging.info("Start")
-    input = os.path.join(os.path.dirname(__file__), "videos/1_2.mp4")
+    input = os.path.join(os.path.dirname(__file__), "videos/1.AVI")
     gpu_id = 0
     nv_dec = None
     from_nv12_to_yuv = None

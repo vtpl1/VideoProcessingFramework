@@ -4,3 +4,5 @@ add_executable(sample_decode
 
 target_link_libraries(sample_decode
     PUBLIC NvCodec)
+
+set_property(TARGET sample_decode PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)

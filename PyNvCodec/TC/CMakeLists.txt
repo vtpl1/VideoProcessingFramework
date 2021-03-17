@@ -83,7 +83,7 @@ add_library(TC STATIC
     src/TasksColorCvt.cpp    
 )
 
-set_property(TARGET TC PROPERTY CUDA_ARCHITECTURES 35 37 50 52 53 60 61 62 70 72 75)
+set_property(TARGET TC PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)
 
 target_include_directories(TC
     PUBLIC inc
