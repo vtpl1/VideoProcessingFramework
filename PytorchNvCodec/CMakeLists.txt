@@ -6,6 +6,8 @@ execute_process ( COMMAND python3 -c "import torch; print(f\"{torch.__path__[0]}
 message(STATUS "TORCH_PATH: ${TORCH_PATH}")
 list(APPEND CMAKE_PREFIX_PATH ${TORCH_PATH})
 find_package(Torch REQUIRED)
+find_library(TORCH_PYTHON_LIBRARY torch_python PATHS "${TORCH_INSTALL_PREFIX}/lib")
+message(STATUS "TORCH_PYTHON_LIBRARY: ${TORCH_PYTHON_LIBRARY}")
 find_package(CUDAToolkit)
 
 pybind11_add_module(PytorchNvCodec 
@@ -13,4 +15,5 @@ pybind11_add_module(PytorchNvCodec
 
 target_link_libraries(PytorchNvCodec
 	PRIVATE ${TORCH_LIBRARIES}
+	PRIVATE ${TORCH_PYTHON_LIBRARY}
 	PRIVATE CUDA::cudart)

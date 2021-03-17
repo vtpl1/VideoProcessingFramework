@@ -225,6 +225,8 @@ def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
     from_yuv_to_rgb = None
     from_rgb_to_rgb_32f = None
     from_rgb_32f_to_rgb_32f_planar = None
+    rgb_downloader = None
+    rgb_frame = None
     rgb_32f_downloader = None
     rgb_32f_frame = None
     rgb_32f_planar_downloader = None
@@ -272,6 +274,27 @@ def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
         if rgb_surface.Empty():
             logging.error("rgb_surface empty")
             break
+        if rgb_downloader is None:
+            rgb_downloader = nvc.PySurfaceDownloader(
+                rgb_surface.Width(),
+                rgb_surface.Height(),
+                rgb_surface.Format(),
+                gpu_id,
+            )
+        if rgb_frame is None:
+            rgb_frame = (
+                np.ones(
+                    shape=rgb_surface.Width() * rgb_surface.Height() * 3,
+                    dtype=np.uint8,
+                )
+            )
+        if not rgb_downloader.DownloadSingleSurface(rgb_surface, rgb_frame):
+            logging.error("rgb_32f_downloader DownloadSingleSurface32F error")
+            break
+        rgb_frame = np.reshape(
+            rgb_frame, (rgb_surface.Width(), rgb_surface.Height(), 3)
+        )
+
         if from_rgb_to_rgb_32f is None:
             from_rgb_to_rgb_32f = nvc.PySurfaceConverter(
                 rgb_surface.Width(),
@@ -305,8 +328,6 @@ def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
         if not rgb_32f_downloader.DownloadSingleSurface(rgb_32f_surface, rgb_32f_frame):
             logging.error("rgb_32f_downloader DownloadSingleSurface32F error")
             break
-        else:
-            logging.info(f"rgb_32f_frame set {rgb_32f_frame.shape}")
         rgb_32f_frame = np.reshape(
             rgb_32f_frame, (rgb_32f_surface.Width(), rgb_32f_surface.Height(), 3)
         )
@@ -331,12 +352,42 @@ def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
         # WritePpmFromFloat32Planar(rgb_planar_frame, width, height, file_name)
         # cv2.imwrite(file_name, rgb_planar_frame)
         # write_planar_rgb(file_name, rgb_planar_frame)
-        # cv2.imshow("vpf", rgb_frame)
-        # cv2.waitKey(10)
+        cv2.imshow("vpf", rgb_frame)
+        cv2.waitKey(10)
 
         frame_count += 1
         # logging.info(
         #     f"{frame_count} rgb_32f Width: {rgb_32f_surface.Width()} Height: {rgb_32f_surface.Height()} Format: {rgb_32f_surface.Format()} Pitch: {rgb_32f_surface.Pitch()}"
         # )
-    # cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
+    assert frame_count == 200
+
+def test_vpf_to_rgb32f_planar(delete_session_folder, caplog):
+    caplog.set_level(logging.INFO)
+    logging.info("Start")
+    input = os.path.join(os.path.dirname(__file__), "videos/1_2.mp4")
+    gpu_id = 0
+    nv_dec = None
+    from_nv12_to_yuv = None
+    frame_count = 0
+    yuv_resizer = None
+    from_yuv_to_rgb = None
+    from_rgb_to_rgb_32f = None
+    from_rgb_32f_to_rgb_32f_planar = None
+    rgb_32f_downloader = None
+    rgb_32f_frame = None
+    rgb_32f_planar_downloader = None
+    rgb_32f_planar_frame = None
+    while True:
+        if nv_dec is None:
+            nv_dec = nvc.PyNvDecoder(input, gpu_id)
+        try:
+            nv12_surface = nv_dec.DecodeSingleSurface()
+        except nvc.HwResetException:
+            continue
+        assert nv12_surface is not None
+        if nv12_surface.Empty():
+            break
+        frame_count += 1
+
     assert frame_count == 200
