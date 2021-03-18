@@ -50,14 +50,26 @@ def write_rgb(file_name, rgb):
     write_rgb_32f(file_name, img)
 
 
+def write_planar_rgb_32f(file_name, rgb_32f_planar):
+    c, w, h = rgb_32f_planar.shape
+    assert c == 3
+    # logging.info(rgb_32f.shape)
+    rgb_32f_planar *= 255.0
+    img = np.ndarray(shape=(w, h, c), dtype=np.uint8, order="C")
+    img[..., 0] = rgb_32f_planar[0]
+    img[..., 1] = rgb_32f_planar[1]
+    img[..., 2] = rgb_32f_planar[2]
+
+    img = img.astype(np.uint8)
+    cv2.imwrite(file_name, img)
+
 def write_rgb_32f(file_name, rgb_32f):
     w, h, c = rgb_32f.shape
     assert c == 3
     # logging.info(rgb_32f.shape)
-    rgb_32f *= 255.0
+    #rgb_32f *= 255.0
     img = rgb_32f.astype(np.uint8)
     cv2.imwrite(file_name, img)
-
 
 def test_vpf_numpy_transform(delete_session_folder, caplog):
     caplog.set_level(logging.INFO)
@@ -404,5 +416,91 @@ def test_vpf_to_rgb32f_planar(delete_session_folder, caplog):
         if rgb_32f_planar_surface.Empty():
             logging.error("rgb_32f_planar_surface error")
             break
+        if rgb_32f_planar_downloader is None:
+            rgb_32f_planar_downloader = nvc.PySurfaceDownloader(
+                rgb_32f_planar_surface.Width(),
+                rgb_32f_planar_surface.Height(),
+                rgb_32f_planar_surface.Format(),
+                gpu_id,
+            )
+        if rgb_32f_planar_frame is None:
+            rgb_32f_planar_frame = np.ones(rgb_32f_planar_surface.HostSize(),
+                dtype=np.float32,
+            )
+        if not rgb_32f_planar_downloader.DownloadSingleSurface(rgb_32f_planar_surface, rgb_32f_planar_frame):
+            logging.error("rgb_32f_planar_downloader rgb_32f_planar_downloader error")
+            break
+        rgb_32f_planar_frame = np.reshape(
+            rgb_32f_planar_frame, (3, rgb_32f_planar_surface.Width(), rgb_32f_planar_surface.Height())
+        )
+        file_name = f"{get_dump_folder()}out{frame_count:05}.jpg"
+        write_planar_rgb_32f(file_name, rgb_32f_planar_frame)
+        logging.info(f"rgb_32f_planar_surface {rgb_32f_planar_surface.Width()} {rgb_32f_planar_surface.Height()} {rgb_32f_planar_surface.Pitch()}")
+
+    assert frame_count == 200
+
+def test_vpf_rgb8_resize(delete_session_folder, caplog):
+    caplog.set_level(logging.INFO)
+    logging.info("Start")
+    input = os.path.join(os.path.dirname(__file__), "videos/1_2.mp4")
+    gpu_id = 0
+    nv_dec = None
+    from_nv12_to_rgb = None
+    frame_count = 0
+    rgb_resizer = None
+    rgb_resized_downloader = None
+    rgb_resized_frame = None
+
+    while True:
+        if nv_dec is None:
+            nv_dec = nvc.PyNvDecoder(input, gpu_id)
+        try:
+            nv12_surface = nv_dec.DecodeSingleSurface()
+        except nvc.HwResetException:
+            continue
+        assert nv12_surface is not None
+        if nv12_surface.Empty():
+            break
+        frame_count += 1
+        if from_nv12_to_rgb is None:
+            from_nv12_to_rgb = nvc.PySurfaceConverter(
+                nv12_surface.Width(),
+                nv12_surface.Height(),
+                nv12_surface.Format(),
+                nvc.PixelFormat.RGB,
+                gpu_id,
+            )
+        rgb_surface = from_nv12_to_rgb.Execute(nv12_surface)
+        assert rgb_surface is not None
+        if rgb_surface.Empty():
+            logging.error("rgb_32f_planar_surface error")
+            break
+        if rgb_resizer is None:
+            rgb_resizer = nvc.PySurfaceResizer(800, 800, rgb_surface.Format(), gpu_id)
+        resized_rgb_surface = rgb_resizer.Execute(rgb_surface)
+        assert resized_rgb_surface is not None
+        if resized_rgb_surface.Empty():
+            logging.error("resized_yuv_surface empty")
+            break
+        if rgb_resized_downloader is None:
+            rgb_resized_downloader = nvc.PySurfaceDownloader(
+                resized_rgb_surface.Width(),
+                resized_rgb_surface.Height(),
+                resized_rgb_surface.Format(),
+                gpu_id,
+            )
+        if rgb_resized_frame is None:
+            rgb_resized_frame = np.ones(resized_rgb_surface.HostSize(),
+                dtype=np.uint8,
+            )
+        if not rgb_resized_downloader.DownloadSingleSurface(resized_rgb_surface, rgb_resized_frame):
+            logging.error("rgb_32f_planar_downloader rgb_32f_planar_downloader error")
+            break
+        rgb_resized_frame = np.reshape(
+            rgb_resized_frame, (resized_rgb_surface.Width(), resized_rgb_surface.Height(), 3)
+        )
+        file_name = f"{get_dump_folder()}out{frame_count:05}.jpg"
+        write_rgb(file_name, rgb_resized_frame)
+        logging.info(f"rgb_32f_planar_surface {resized_rgb_surface.Width()} {resized_rgb_surface.Height()} {resized_rgb_surface.Pitch()}")
 
     assert frame_count == 200

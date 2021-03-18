@@ -120,8 +120,9 @@ class DllExport PySurfacePreprocessor {
 
  public:
   PySurfacePreprocessor(uint32_t in_width, uint32_t in_height,
+  Pixel_Format inFormat, 
                         uint32_t out_width, uint32_t out_height,
-                        Pixel_Format inFormat, Pixel_Format outFormat,
+                        Pixel_Format outFormat,
                         uint32_t gpuID);
 
   std::shared_ptr<Surface> Execute(std::shared_ptr<Surface> surface);

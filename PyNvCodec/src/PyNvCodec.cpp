@@ -297,24 +297,30 @@ shared_ptr<Surface> PySurfaceConverter::Execute(shared_ptr<Surface> surface) {
 Pixel_Format PySurfaceConverter::GetFormat() { return outputFormat; }
 
 PySurfacePreprocessor::PySurfacePreprocessor(
-    uint32_t in_width, uint32_t in_height, uint32_t out_width,
-    uint32_t out_height, Pixel_Format inFormat, Pixel_Format outFormat,
+    uint32_t in_width, uint32_t in_height, Pixel_Format inFormat, uint32_t out_width,
+    uint32_t out_height, Pixel_Format outFormat,
     uint32_t gpuID)
     : gpuID(gpuID), outputFormat(outFormat) {
   upPreprocessor.reset(PreprocessSurface::Make(
-      in_width, in_height, out_width, out_height, inFormat, outFormat,
+      in_width, in_height, inFormat, out_width, out_height, outFormat,
       CudaResMgr::Instance().GetCtx(gpuID),
       CudaResMgr::Instance().GetStream(gpuID)));
 }
 
-std::shared_ptr<Surface> PySurfacePreprocessor::Execute(
-    std::shared_ptr<Surface> surface) {
-  return shared_ptr<Surface>();
+std::shared_ptr<Surface> PySurfacePreprocessor::Execute(std::shared_ptr<Surface> surface) {
+  if (!surface) {
+    return shared_ptr<Surface>(Surface::Make(outputFormat));
+  }
+  upPreprocessor->SetInput(surface.get(), 0U);
+  if (TASK_EXEC_SUCCESS != upPreprocessor->Execute()) {
+    return shared_ptr<Surface>(Surface::Make(outputFormat));
+  }
+  auto pSurface = (Surface *)upPreprocessor->GetOutput(0U);
+  return shared_ptr<Surface>(pSurface ? pSurface->Clone()
+                                      : Surface::Make(outputFormat));
 }
 
-Pixel_Format PySurfacePreprocessor::GetFormat() {
-  return Pixel_Format::RGB_32F_PLANAR;
-}
+Pixel_Format PySurfacePreprocessor::GetFormat() { return outputFormat; }
 
 PySurfaceResizer::PySurfaceResizer(uint32_t width, uint32_t height,
                                    Pixel_Format format, uint32_t gpuID)
@@ -1559,7 +1565,7 @@ PYBIND11_MODULE(PyNvCodec, m) {
            py::return_value_policy::take_ownership);
 
   py::class_<PySurfacePreprocessor>(m, "PySurfacePreprocessor")
-      .def(py::init<uint32_t, uint32_t, uint32_t, uint32_t, Pixel_Format, Pixel_Format, uint32_t>())
+      .def(py::init<uint32_t, uint32_t, Pixel_Format, uint32_t, uint32_t, Pixel_Format, uint32_t>())
       .def("Format", &PySurfacePreprocessor::GetFormat)
       .def("Execute", &PySurfacePreprocessor::Execute,
            py::return_value_policy::take_ownership);

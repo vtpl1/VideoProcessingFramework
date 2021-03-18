@@ -2,7 +2,7 @@
 set (PYTORCH_NVCODEC_VERSION_MAJOR 1)
 set (PYTORCH_NVCODEC_VERSION_MINOR 0)
 #execute_process ( COMMAND python3 -c "from distutils.sysconfig import get_python_lib; print(f\"{get_python_lib()}\")" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process ( COMMAND python -c "import torch; print(f\"{torch.__path__[0]}\")" OUTPUT_VARIABLE TORCH_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process ( COMMAND python3 -c "import torch; print(f\"{torch.__path__[0]}\")" OUTPUT_VARIABLE TORCH_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
 message(STATUS "TORCH_PATH: ${TORCH_PATH}")
 list(APPEND CMAKE_PREFIX_PATH ${TORCH_PATH})
 find_package(Torch REQUIRED)
