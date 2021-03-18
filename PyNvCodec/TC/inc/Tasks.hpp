@@ -19,7 +19,7 @@
 #include "cuviddec.h"
 
 extern "C" {
-  #include <libavutil/frame.h>
+#include <libavutil/frame.h>
 }
 
 using namespace VPF;
@@ -27,7 +27,7 @@ using namespace VPF;
 // VPF stands for Video Processing Framework;
 namespace VPF {
 class DllExport NvencEncodeFrame final : public Task {
-public:
+ public:
   NvencEncodeFrame() = delete;
   NvencEncodeFrame(const NvencEncodeFrame &other) = delete;
   NvencEncodeFrame &operator=(const NvencEncodeFrame &other) = delete;
@@ -42,7 +42,7 @@ public:
   bool Reconfigure(NvEncoderClInterface &cli_iface, bool force_idr,
                    bool reset_enc, bool verbose);
 
-private:
+ private:
   NvencEncodeFrame(CUstream cuStream, CUcontext cuContext,
                    NvEncoderClInterface &cli_iface, NV_ENC_BUFFER_FORMAT format,
                    uint32_t width, uint32_t height, bool verbose);
@@ -52,7 +52,7 @@ private:
 };
 
 class DllExport NvdecDecodeFrame final : public Task {
-public:
+ public:
   NvdecDecodeFrame() = delete;
   NvdecDecodeFrame(const NvdecDecodeFrame &other) = delete;
   NvdecDecodeFrame &operator=(const NvdecDecodeFrame &other) = delete;
@@ -68,7 +68,7 @@ public:
                                 uint32_t coded_width, uint32_t coded_height,
                                 Pixel_Format format);
 
-private:
+ private:
   static const uint32_t numInputs = 1U;
   static const uint32_t numOutputs = 1U;
   struct NvdecDecodeFrame_Impl *pImpl = nullptr;
@@ -80,7 +80,7 @@ private:
 };
 
 class DllExport FfmpegDecodeFrame final : public Task {
-public:
+ public:
   FfmpegDecodeFrame() = delete;
   FfmpegDecodeFrame(const FfmpegDecodeFrame &other) = delete;
   FfmpegDecodeFrame &operator=(const FfmpegDecodeFrame &other) = delete;
@@ -92,7 +92,7 @@ public:
   static FfmpegDecodeFrame *Make(const char *URL,
                                  NvDecoderClInterface &cli_iface);
 
-private:
+ private:
   static const uint32_t num_inputs = 0U;
   // Reconstructed pixels + side data;
   static const uint32_t num_outputs = 2U;
@@ -102,7 +102,7 @@ private:
 };
 
 class DllExport CudaUploadFrame final : public Task {
-public:
+ public:
   CudaUploadFrame() = delete;
   CudaUploadFrame(const CudaUploadFrame &other) = delete;
   CudaUploadFrame &operator=(const CudaUploadFrame &other) = delete;
@@ -114,7 +114,7 @@ public:
                                uint32_t width, uint32_t height,
                                Pixel_Format pixelFormat);
 
-private:
+ private:
   CudaUploadFrame(CUstream cuStream, CUcontext cuContext, uint32_t width,
                   uint32_t height, Pixel_Format pixelFormat);
   static const uint32_t numInputs = 1U;
@@ -123,7 +123,7 @@ private:
 };
 
 class DllExport CudaDownloadSurface final : public Task {
-public:
+ public:
   CudaDownloadSurface() = delete;
   CudaDownloadSurface(const CudaDownloadSurface &other) = delete;
   CudaDownloadSurface &operator=(const CudaDownloadSurface &other) = delete;
@@ -134,7 +134,7 @@ public:
                                    uint32_t width, uint32_t height,
                                    Pixel_Format pixelFormat);
 
-private:
+ private:
   CudaDownloadSurface(CUstream cuStream, CUcontext cuContext, uint32_t width,
                       uint32_t height, Pixel_Format pixelFormat);
   static const uint32_t numInputs = 1U;
@@ -143,7 +143,7 @@ private:
 };
 
 class DllExport DemuxFrame final : public Task {
-public:
+ public:
   DemuxFrame() = delete;
   DemuxFrame(const DemuxFrame &other) = delete;
   DemuxFrame &operator=(const DemuxFrame &other) = delete;
@@ -154,7 +154,7 @@ public:
   static DemuxFrame *Make(const char *url, const char **ffmpeg_options,
                           uint32_t opts_size);
 
-private:
+ private:
   DemuxFrame(const char *url, const char **ffmpeg_options, uint32_t opts_size);
   static const uint32_t numInputs = 1U;
   static const uint32_t numOutputs = 3U;
@@ -162,7 +162,7 @@ private:
 };
 
 class DllExport MuxFrame final : public Task {
-public:
+ public:
   MuxFrame() = delete;
   MuxFrame(const MuxFrame &other) = delete;
   MuxFrame &operator=(const MuxFrame &other) = delete;
@@ -171,7 +171,7 @@ public:
   ~MuxFrame() final;
   static MuxFrame *Make(const char *url);
 
-private:
+ private:
   MuxFrame(const char *url);
   static const uint32_t numInputs = 2U;
   static const uint32_t numOutputs = 0U;
@@ -180,7 +180,7 @@ private:
 };
 
 class DllExport ConvertSurface final : public Task {
-public:
+ public:
   ConvertSurface() = delete;
   ConvertSurface(const ConvertSurface &other) = delete;
   ConvertSurface &operator=(const ConvertSurface &other) = delete;
@@ -193,7 +193,7 @@ public:
 
   TaskExecStatus Execute() final;
 
-private:
+ private:
   static const uint32_t numInputs = 1U;
   static const uint32_t numOutputs = 1U;
 
@@ -203,8 +203,35 @@ private:
                  Pixel_Format outFormat, CUcontext ctx, CUstream str);
 };
 
+class DllExport PreprocessSurface final : public Task {
+ public:
+  PreprocessSurface() = delete;
+  PreprocessSurface(const PreprocessSurface &other) = delete;
+  PreprocessSurface &operator=(const PreprocessSurface &other) = delete;
+
+  static PreprocessSurface *Make(uint32_t in_width, uint32_t in_height,
+                                 Pixel_Format inFormat, uint32_t out_width,
+                                 uint32_t out_height, Pixel_Format outFormat,
+                                 CUcontext ctx, CUstream str);
+
+  ~PreprocessSurface();
+
+  TaskExecStatus Execute() final;
+
+ private:
+  static const uint32_t numInputs = 1U;
+  static const uint32_t numOutputs = 1U;
+
+  struct NppPreprocessSurface_Impl *pImpl;
+
+  PreprocessSurface(uint32_t in_width, uint32_t in_height,
+                    Pixel_Format inFormat, uint32_t out_width,
+                    uint32_t out_height, Pixel_Format outFormat, CUcontext ctx,
+                    CUstream str);
+};
+
 class DllExport ResizeSurface final : public Task {
-public:
+ public:
   ResizeSurface() = delete;
   ResizeSurface(const ResizeSurface &other) = delete;
   ResizeSurface &operator=(const ResizeSurface &other) = delete;
@@ -216,7 +243,7 @@ public:
 
   TaskExecStatus Execute() final;
 
-private:
+ private:
   static const uint32_t numInputs = 1U;
   static const uint32_t numOutputs = 1U;
 
@@ -224,4 +251,4 @@ private:
   ResizeSurface(uint32_t width, uint32_t height, Pixel_Format format,
                 CUcontext ctx, CUstream str);
 };
-} // namespace VPF
+}  // namespace VPF

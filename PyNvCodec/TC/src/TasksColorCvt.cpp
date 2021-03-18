@@ -406,6 +406,7 @@ struct rbg8_swapchannel final : public NppConvertSurface_Impl {
   }
   Surface *pSurface = nullptr;
 };
+
 struct rbg8_rgb32f final : public NppConvertSurface_Impl {
   rbg8_rgb32f(uint32_t width, uint32_t height, CUcontext context,
                    CUstream stream)

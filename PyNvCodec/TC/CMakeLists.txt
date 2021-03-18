@@ -80,7 +80,8 @@ add_library(TC STATIC
     src/NvEncoder.cpp
     src/NvEncoderCuda.cpp
     src/Tasks.cpp
-    src/TasksColorCvt.cpp    
+    src/TasksColorCvt.cpp
+    src/TasksPreprocess.cpp
 )
 
 set_property(TARGET TC PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)

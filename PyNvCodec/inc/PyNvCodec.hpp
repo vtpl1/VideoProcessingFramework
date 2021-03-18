@@ -113,6 +113,22 @@ public:
   Pixel_Format GetFormat();
 };
 
+class DllExport PySurfacePreprocessor {
+  std::unique_ptr<PreprocessSurface> upPreprocessor;
+  Pixel_Format outputFormat;
+  uint32_t gpuID;
+
+ public:
+  PySurfacePreprocessor(uint32_t in_width, uint32_t in_height,
+                        uint32_t out_width, uint32_t out_height,
+                        Pixel_Format inFormat, Pixel_Format outFormat,
+                        uint32_t gpuID);
+
+  std::shared_ptr<Surface> Execute(std::shared_ptr<Surface> surface);
+
+  Pixel_Format GetFormat();
+};
+
 class DllExport PySurfaceResizer {
   std::unique_ptr<ResizeSurface> upResizer;
   Pixel_Format outputFormat;

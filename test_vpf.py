@@ -282,11 +282,9 @@ def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
                 gpu_id,
             )
         if rgb_frame is None:
-            rgb_frame = (
-                np.ones(
-                    shape=rgb_surface.Width() * rgb_surface.Height() * 3,
-                    dtype=np.uint8,
-                )
+            rgb_frame = np.ones(
+                shape=rgb_surface.Width() * rgb_surface.Height() * 3,
+                dtype=np.uint8,
             )
         if not rgb_downloader.DownloadSingleSurface(rgb_surface, rgb_frame):
             logging.error("rgb_32f_downloader DownloadSingleSurface32F error")
@@ -362,6 +360,7 @@ def test_vpf_numpy_transform_rgb32f(delete_session_folder, caplog):
     cv2.destroyAllWindows()
     assert frame_count == 200
 
+
 def test_vpf_to_rgb32f_planar(delete_session_folder, caplog):
     caplog.set_level(logging.INFO)
     logging.info("Start")
@@ -378,6 +377,7 @@ def test_vpf_to_rgb32f_planar(delete_session_folder, caplog):
     rgb_32f_frame = None
     rgb_32f_planar_downloader = None
     rgb_32f_planar_frame = None
+    from_nv12_to_rgb_32f_planar = None
     while True:
         if nv_dec is None:
             nv_dec = nvc.PyNvDecoder(input, gpu_id)
@@ -389,5 +389,20 @@ def test_vpf_to_rgb32f_planar(delete_session_folder, caplog):
         if nv12_surface.Empty():
             break
         frame_count += 1
+        if from_nv12_to_rgb_32f_planar is None:
+            from_nv12_to_rgb_32f_planar = nvc.PySurfacePreprocessor(
+                nv12_surface.Width(),
+                nv12_surface.Height(),
+                nv12_surface.Format(),
+                800,
+                800,
+                nvc.PixelFormat.RGB_32F_PLANAR,
+                gpu_id,
+            )
+        rgb_32f_planar_surface = from_nv12_to_rgb_32f_planar.Execute(nv12_surface)
+        assert rgb_32f_planar_surface is not None
+        if rgb_32f_planar_surface.Empty():
+            logging.error("rgb_32f_planar_surface error")
+            break
 
     assert frame_count == 200
