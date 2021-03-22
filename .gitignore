@@ -1,4 +1,5 @@
 build
+bin
 install/bin
 .devcontainer/Video_Codec_SDK_11.0.10.tar.xz
 session

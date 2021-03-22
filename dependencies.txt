@@ -1,0 +1,16 @@
+avcodec-58.dll
+avdevice-58.dll
+avfilter-7.dll
+avformat-58.dll
+avutil-56.dll
+cudart64_110.dll
+nppc64_11.dll
+nppicc64_11.dll
+nppidei64_11.dll
+nppig64_11.dll
+swresample-3.dll
+swscale-5.dll
+
+https://www.codeproject.com/articles/560816/troubleshooting-dependency-resolution-problems-usi
+https://github.com/faisalmansoor/Dependz/blob/master/DependzBinary.zip
+use Procmon
