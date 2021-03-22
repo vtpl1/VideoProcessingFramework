@@ -13,11 +13,11 @@
 
 #pragma once
 
-#if defined(_WIN32)
-#define DllExport __declspec(dllexport)
-#else
-#define DllExport
-#endif
+  #if defined(_WIN32)
+  #define DllExport __declspec(dllexport)
+  #else
+  #define DllExport
+  #endif
 
 #include "nvcuvid.h"
 #include <stdint.h>
@@ -49,8 +49,8 @@ public:
   int GetBitDepth();
 
   bool DecodeLockSurface(const uint8_t *pData, size_t nSize,
-                         CUdeviceptr &decSurface, bool &isFrameReturned,
-                         uint32_t flags = 0U);
+                         CUdeviceptr &decSurface, uint64_t &timestamp,
+                         bool &isFrameReturned, uint32_t flags = 0U);
 
   void UnlockSurface(CUdeviceptr &lockedSurface);
 

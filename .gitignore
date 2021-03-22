@@ -6,5 +6,7 @@ session
 __pycache__
 videos
 ffmpeg-4.3.2-2021-02-20-full_build-shared
+ffmpeg
 Video_Codec_SDK_11.0.10
 venv
+build_release

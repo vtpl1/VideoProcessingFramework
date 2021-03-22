@@ -15,6 +15,7 @@
 
 #include "MemoryInterfaces.hpp"
 #include "NvCodecCLIOptions.h"
+#include "FFmpegDemuxer.h"
 #include "TC_CORE.hpp"
 #include "Tasks.hpp"
 
@@ -204,10 +205,11 @@ public:
   PyNvDecoder(const std::string &pathToFile, int gpuOrdinal,
               const std::map<std::string, std::string> &ffmpeg_options);
 
-  static Buffer *getElementaryVideo(DemuxFrame *demuxer, bool needSEI);
+  static Buffer *getElementaryVideo(DemuxFrame *demuxer, Buffer *&p_demuxed_ctx,
+                                    bool needSEI);
 
   static Surface *getDecodedSurface(NvdecDecodeFrame *decoder,
-                                    DemuxFrame *demuxer,
+                                    DemuxFrame *demuxer, PacketData &ctx,
                                     bool &hw_decoder_failure, bool needSEI);
 
   uint32_t Width() const;
@@ -233,11 +235,21 @@ public:
 
   std::shared_ptr<Surface> DecodeSingleSurface(py::array_t<uint8_t> &sei);
 
-  
+  std::shared_ptr<Surface> DecodeSingleSurface(py::array_t<uint8_t> &sei, struct SeekContext &ctx);
+
+  std::shared_ptr<Surface> DecodeSingleSurface();
+
+  std::shared_ptr<Surface> DecodeSingleSurface(struct SeekContext &ctx);
+
   bool DecodeSingleFrame(py::array_t<uint8_t> &frame,
                          py::array_t<uint8_t> &sei);
 
+  bool DecodeSingleFrame(py::array_t<uint8_t> &frame, py::array_t<uint8_t> &sei,
+                         struct SeekContext &ctx);
+
   bool DecodeSingleFrame(py::array_t<uint8_t> &frame);
+
+  bool DecodeSingleFrame(py::array_t<uint8_t> &frame, struct SeekContext &ctx);
 
   bool DecodeFrameFromPacket(py::array_t<uint8_t> &frame,
                              py::array_t<uint8_t> &packet,
@@ -247,6 +259,8 @@ public:
                              py::array_t<uint8_t> &packet);
 
   bool FlushSingleFrame(py::array_t<uint8_t> &frame);
+
+  std::shared_ptr<Surface> FlushSingleSurface();
 #else
   std::shared_ptr<Surface> DecodeSurfaceFromPacket(std::vector<uint8_t> &packet,
                                                    std::vector<uint8_t> &sei);
@@ -256,11 +270,21 @@ public:
 
   std::shared_ptr<Surface> DecodeSingleSurface(std::vector<uint8_t> &sei);
 
+  std::shared_ptr<Surface> DecodeSingleSurface(std::vector<uint8_t> &sei, struct SeekContext &ctx);
+
+  std::shared_ptr<Surface> DecodeSingleSurface();
+
+  std::shared_ptr<Surface> DecodeSingleSurface(struct SeekContext &ctx);
 
   bool DecodeSingleFrame(std::vector<uint8_t> &frame,
                          std::vector<uint8_t> &sei);
 
+  bool DecodeSingleFrame(std::vector<uint8_t> &frame, std::vector<uint8_t> &sei,
+                         struct SeekContext &ctx);
+
   bool DecodeSingleFrame(std::vector<uint8_t> &frame);
+
+  bool DecodeSingleFrame(std::vector<uint8_t> &frame, struct SeekContext &ctx);
 
   bool DecodeFrameFromPacket(std::vector<uint8_t> &frame,
                              std::vector<uint8_t> &packet,
@@ -270,19 +294,20 @@ public:
                              std::vector<uint8_t> &packet);
 
   bool FlushSingleFrame(std::vector<uint8_t> &frame);
-#endif
 
-  std::shared_ptr<Surface> DecodeSingleSurface();
   std::shared_ptr<Surface> FlushSingleSurface();
+#endif
 
 private:
   bool DecodeSurface(struct DecodeContext &ctx);
 
 #ifdef GENERATE_PYTHON_BINDINGS
   Surface *getDecodedSurfaceFromPacket(py::array_t<uint8_t> *pPacket,
+                                       PacketData &ctx,
                                        bool &hw_decoder_failure);
 #else
   Surface *getDecodedSurfaceFromPacket(std::vector<uint8_t> *pPacket,
+                                       PacketData &ctx,
                                        bool &hw_decoder_failure);
 #endif
 };

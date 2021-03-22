@@ -68,9 +68,9 @@ class DllExport NvdecDecodeFrame final : public Task {
                                 uint32_t coded_width, uint32_t coded_height,
                                 Pixel_Format format);
 
- private:
-  static const uint32_t numInputs = 1U;
-  static const uint32_t numOutputs = 1U;
+private:
+  static const uint32_t numInputs = 2U;
+  static const uint32_t numOutputs = 2U;
   struct NvdecDecodeFrame_Impl *pImpl = nullptr;
 
   NvdecDecodeFrame(CUstream cuStream, CUcontext cuContext,
@@ -149,6 +149,7 @@ class DllExport DemuxFrame final : public Task {
   DemuxFrame &operator=(const DemuxFrame &other) = delete;
 
   void GetParams(struct MuxingParams &params) const;
+  void Seek(struct SeekContext &ctx);
   TaskExecStatus Execute() final;
   ~DemuxFrame() final;
   static DemuxFrame *Make(const char *url, const char **ffmpeg_options,
@@ -157,7 +158,7 @@ class DllExport DemuxFrame final : public Task {
  private:
   DemuxFrame(const char *url, const char **ffmpeg_options, uint32_t opts_size);
   static const uint32_t numInputs = 1U;
-  static const uint32_t numOutputs = 3U;
+  static const uint32_t numOutputs = 4U;
   struct DemuxFrame_Impl *pImpl = nullptr;
 };
 

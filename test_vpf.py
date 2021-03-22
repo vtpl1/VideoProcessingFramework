@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "build/PyNvCodec"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "build_release/PyNvCodec/Release"))
 
 import PyNvCodec as nvc
 import pytest
