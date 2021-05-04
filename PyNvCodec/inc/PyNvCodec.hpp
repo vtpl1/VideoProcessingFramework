@@ -62,7 +62,6 @@ public:
   HwResetException() : std::runtime_error("HW reset") {}
 };
 
-
 class CuvidParserException : public std::runtime_error {
 public:
   CuvidParserException(std::string &str) : std::runtime_error(str) {}
@@ -172,6 +171,7 @@ public:
 #endif
 
   void GetLastPacketData(PacketData &pkt_data);
+
 #ifdef GENERATE_PYTHON_BINDINGS
   bool Seek(SeekContext &ctx, py::array_t<uint8_t> &packet);
 #else
