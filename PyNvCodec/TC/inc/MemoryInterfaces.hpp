@@ -31,6 +31,9 @@ enum Pixel_Format {
   BGR = 6,
   YCBCR = 7,
   YUV444 = 8,
+  RGB_32F = 9,
+  RGB_32F_PLANAR = 10,
+  RGB_32F_PLANAR_CONTIGUOUS = 11,
 };
 
 /* Represents CPU-side memory.
@@ -44,9 +47,11 @@ public:
 
   ~Buffer() final;
   void *GetRawMemPtr();
-  size_t GetRawMemSize();
+  const void *GetRawMemPtr() const;
+  size_t GetRawMemSize() const;
   void Update(size_t newSize, void *newPtr = nullptr);
   template <typename T> T *GetDataAs() { return (T *)GetRawMemPtr(); }
+  template <typename T> T const *GetDataAs() const { return (T const *)GetRawMemPtr(); }
 
   static Buffer *Make(size_t bufferSize);
   static Buffer *Make(size_t bufferSize, void *pCopyFrom);
@@ -115,6 +120,11 @@ struct DllExport SurfacePlane {
   SurfacePlane(uint32_t newWidth, uint32_t newHeight, uint32_t newElemSize,
                CUcontext context);
 
+  /* Construct & own memory. Copy from given pointer.
+   */
+  SurfacePlane(uint32_t newWidth, uint32_t newHeight, uint32_t newElemSize,
+               uint32_t srcPitch, CUdeviceptr src, CUcontext context, CUstream str);
+
   /* Destruct, free memory if we own it;
    */
   ~SurfacePlane();
@@ -126,6 +136,24 @@ struct DllExport SurfacePlane {
   /* Deallocate memory if we own it;
    */
   void Deallocate();
+
+  /* Copy from SurfacePlane memory to given pointer.
+   * User must check that memory allocation referenced by ptr is enough.
+   */
+  void Export(CUdeviceptr dst, uint32_t dst_pitch, CUcontext ctx, CUstream str);
+
+  /* Copy to SurfacePlane memory from given pointer.
+   * User must check that memory allocation referenced by ptr is enough.
+   */
+  void Import(CUdeviceptr src, uint32_t src_pitch, CUcontext ctx, CUstream str);
+
+  /* Copy from SurfacePlane;
+   */
+  void Export(SurfacePlane &dst, CUcontext ctx, CUstream str);
+
+  /* Copy to SurfacePlane;
+   */
+  void Import(SurfacePlane &src, CUcontext ctx, CUstream str);
 
   /* Returns true if class owns the memory, false otherwise;
    */
@@ -438,7 +466,7 @@ public:
   uint32_t HostMemSize() const override;
 
   CUdeviceptr PlanePtr(uint32_t planeNumber = 0U) override;
-  Pixel_Format PixelFormat() const override { return RGB; }
+  Pixel_Format PixelFormat() const override { return RGB_PLANAR; }
   uint32_t NumPlanes() const override { return 3; }
   virtual uint32_t ElemSize() const override { return sizeof(uint8_t); }
   bool Empty() const override { return 0UL == plane.GpuMem(); }
@@ -470,5 +498,111 @@ public:
  */
 bool DllExport CheckAllocationCounters();
 #endif
+
+/* 32-bit float RGB image;
+ */
+class DllExport SurfaceRGB32F : public Surface {
+public:
+  ~SurfaceRGB32F();
+
+  SurfaceRGB32F();
+  SurfaceRGB32F(const SurfaceRGB32F &other);
+  SurfaceRGB32F(uint32_t width, uint32_t height, CUcontext context);
+  SurfaceRGB32F &operator=(const SurfaceRGB32F &other);
+
+  Surface *Clone() override;
+  Surface *Create() override;
+
+  uint32_t Width(uint32_t planeNumber = 0U) const override;
+  uint32_t WidthInBytes(uint32_t planeNumber = 0U) const override;
+  uint32_t Height(uint32_t planeNumber = 0U) const override;
+  uint32_t Pitch(uint32_t planeNumber = 0U) const override;
+  uint32_t HostMemSize() const override;
+
+  CUdeviceptr PlanePtr(uint32_t planeNumber = 0U) override;
+  Pixel_Format PixelFormat() const override { return RGB_32F; }
+  uint32_t NumPlanes() const override { return 1; }
+  virtual uint32_t ElemSize() const override { return sizeof(float); }
+  bool Empty() const override { return 0UL == plane.GpuMem(); }
+
+  void Update(const SurfacePlane &newPlane);
+  bool Update(SurfacePlane *pPlanes, size_t planesNum) override;
+  SurfacePlane *GetSurfacePlane(uint32_t planeNumber = 0U) override;
+
+protected:
+  SurfacePlane plane;
+};
+
+/* 32-bit float planar RGB image;
+ */
+class DllExport SurfaceRGB32FPlanar : public Surface {
+public:
+  ~SurfaceRGB32FPlanar();
+
+  SurfaceRGB32FPlanar();
+  SurfaceRGB32FPlanar(const SurfaceRGB32FPlanar &other);
+  SurfaceRGB32FPlanar(uint32_t width, uint32_t height, CUcontext context);
+  SurfaceRGB32FPlanar &operator=(const SurfaceRGB32FPlanar &other);
+
+  virtual Surface *Clone() override;
+  virtual Surface *Create() override;
+
+  uint32_t Width(uint32_t planeNumber = 0U) const override;
+  uint32_t WidthInBytes(uint32_t planeNumber = 0U) const override;
+  uint32_t Height(uint32_t planeNumber = 0U) const override;
+  uint32_t Pitch(uint32_t planeNumber = 0U) const override;
+  uint32_t HostMemSize() const override;
+
+  CUdeviceptr PlanePtr(uint32_t planeNumber = 0U) override;
+  Pixel_Format PixelFormat() const override { return RGB_32F_PLANAR; }
+  uint32_t NumPlanes() const override { return 3; }
+  virtual uint32_t ElemSize() const override { return sizeof(float); }
+  bool Empty() const override { return 0UL == plane.GpuMem(); }
+
+  void Update(const SurfacePlane &newPlane);
+  bool Update(SurfacePlane *pPlanes, size_t planesNum) override;
+  SurfacePlane *GetSurfacePlane(uint32_t planeNumber = 0U) override;
+
+protected:
+  SurfacePlane plane;
+};
+
+/* 32-bit float planar RGB contiguous image;
+ */
+class DllExport SurfaceRGB32FPlanarContiguous : public Surface {
+public:
+  ~SurfaceRGB32FPlanarContiguous();
+
+  SurfaceRGB32FPlanarContiguous();
+  SurfaceRGB32FPlanarContiguous(const SurfaceRGB32FPlanarContiguous &other);
+  SurfaceRGB32FPlanarContiguous(uint32_t width, uint32_t height, CUcontext context);
+  SurfaceRGB32FPlanarContiguous &operator=(const SurfaceRGB32FPlanarContiguous &other);
+
+  virtual Surface *Clone() override;
+  virtual Surface *Create() override;
+
+  uint32_t Width(uint32_t planeNumber = 0U) const override;
+  uint32_t WidthInBytes(uint32_t planeNumber = 0U) const override;
+  uint32_t Height(uint32_t planeNumber = 0U) const override;
+  uint32_t Pitch(uint32_t planeNumber = 0U) const override;
+  uint32_t HostMemSize() const override;
+
+  CUdeviceptr PlanePtr(uint32_t planeNumber = 0U) override;
+  Pixel_Format PixelFormat() const override { return RGB_32F_PLANAR_CONTIGUOUS; }
+  uint32_t NumPlanes() const override { return numPlanes; }
+  virtual uint32_t ElemSize() const override { return sizeof(float); }
+  bool Empty() const override { return 0UL == plane.GpuMem(); }
+
+  void Update(const SurfacePlane &newPlane);
+  bool Update(SurfacePlane *pPlanes, size_t planesNum) override;
+  SurfacePlane *GetSurfacePlane(uint32_t planeNumber = 0U) override;
+
+protected:
+  SurfacePlane plane;
+private:
+  uint32_t width = 0U;
+  uint32_t height = 0U;
+  uint32_t numPlanes = 0U;
+};
 
 } // namespace VPF

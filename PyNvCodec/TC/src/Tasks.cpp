@@ -225,6 +225,7 @@ namespace VPF {
 struct NvdecDecodeFrame_Impl {
   NvDecoder nvDecoder;
   Surface *pLastSurface = nullptr;
+  Buffer *pPacketData = nullptr;
   CUstream stream = 0;
   CUcontext context = nullptr;
   bool didDecode = false;
@@ -238,9 +239,13 @@ struct NvdecDecodeFrame_Impl {
       : stream(cuStream), context(cuContext),
         nvDecoder(cuStream, cuContext, videoCodec) {
     pLastSurface = Surface::Make(format);
+    pPacketData = Buffer::MakeOwnMem(1U);
   }
 
-  ~NvdecDecodeFrame_Impl() { delete pLastSurface; }
+  ~NvdecDecodeFrame_Impl() {
+    delete pLastSurface;
+    delete pPacketData;
+  }
 };
 } // namespace VPF
 
@@ -277,45 +282,65 @@ TaskExecStatus NvdecDecodeFrame::Execute() {
   ClearOutputs();
 
   auto &decoder = pImpl->nvDecoder;
-  auto pElementaryVideoStream = (Buffer *)GetInput();
+  auto pEncFrame = (Buffer *)GetInput();
 
-  uint8_t *pVideo = nullptr;
-  size_t nVideoBytes = 0U;
-
-  if (pElementaryVideoStream) {
-    pVideo = (uint8_t *)pElementaryVideoStream->GetRawMemPtr();
-    nVideoBytes = pElementaryVideoStream->GetRawMemSize();
-  } else if (!pImpl->didDecode) {
+  if (!pEncFrame && !pImpl->didDecode) {
     /* Empty input given + we've never did decoding means something went wrong;
      * Otherwise (no input + we did decode) means we're flushing;
      */
     return TASK_EXEC_FAIL;
   }
 
-  CUdeviceptr surface = 0U;
   bool isSurfaceReturned = false;
-  auto res = decoder.DecodeLockSurface(pVideo, nVideoBytes, surface,
-                                       isSurfaceReturned);
-  pImpl->didDecode = true;
-  if (!res) {
+  uint64_t timestamp = 0U;
+  auto pPktData = (Buffer *)GetInput(1U);
+  if (pPktData) {
+    auto p_pkt_data = pPktData->GetDataAs<PacketData>();
+    timestamp = p_pkt_data->pts;
+    pImpl->pPacketData->Update(sizeof(*p_pkt_data), p_pkt_data);
+  }
+
+  /* This will feed decoder with input timestamp.
+   * It will also return surface + it's timestamp.
+   * So timestamp is input + output parameter. */
+  DecodedFrameContext dec_ctx;
+  try {
+    isSurfaceReturned =
+        decoder.DecodeLockSurface(pEncFrame, timestamp, dec_ctx);
+    pImpl->didDecode = true;
+  } catch (exception &e) {
+    cerr << e.what() << endl;
     return TASK_EXEC_FAIL;
   }
 
   if (isSurfaceReturned) {
+    // Unlock last surface because we will use it later;
     auto lastSurface = pImpl->pLastSurface->PlanePtr();
     decoder.UnlockSurface(lastSurface);
 
+    // Update the reconstructed frame data;
     auto rawW = decoder.GetWidth();
     auto rawH = decoder.GetHeight() + decoder.GetChromaHeight();
     auto rawP = decoder.GetDeviceFramePitch();
 
-    SurfacePlane tmpPlane(rawW, rawH, rawP, sizeof(uint8_t), surface);
+    SurfacePlane tmpPlane(rawW, rawH, rawP, sizeof(uint8_t), dec_ctx.mem);
     pImpl->pLastSurface->Update(&tmpPlane, 1);
     SetOutput(pImpl->pLastSurface, 0U);
+
+    // Update the reconstructed frame timestamp;
+    auto p_packet_data = pImpl->pPacketData->GetDataAs<PacketData>();
+    memset(p_packet_data, 0, sizeof(*p_packet_data));
+    p_packet_data->pts = dec_ctx.pts;
+    p_packet_data->poc = dec_ctx.poc;
+    SetOutput(pImpl->pPacketData, 1U);
+
     return TASK_EXEC_SUCCESS;
   }
 
-  return (nVideoBytes == 0) ? TASK_EXEC_FAIL : TASK_EXEC_SUCCESS;
+  /* If we have input and don't get output so far that's fine.
+   * Otherwise input is NULL and we're flusing so we shall get frame.
+   */
+  return pEncFrame ? TASK_EXEC_SUCCESS : TASK_EXEC_FAIL;
 }
 
 void NvdecDecodeFrame::GetDecodedFrameParams(uint32_t &width, uint32_t &height,
@@ -343,6 +368,10 @@ static size_t GetElemSize(Pixel_Format format) {
   case BGR:
   case Y:
     return sizeof(uint8_t);
+  case RGB_32F:
+  case RGB_32F_PLANAR:
+  case RGB_32F_PLANAR_CONTIGUOUS:
+    return sizeof(float);
   default:
     ss << __FUNCTION__;
     ss << ": unsupported pixel format";
@@ -450,7 +479,8 @@ struct CudaDownloadSurface_Impl {
     if (YUV420 == _pix_fmt || NV12 == _pix_fmt || YCBCR == _pix_fmt) {
       bufferSize = bufferSize * 3U / 2U;
     } else if (RGB == _pix_fmt || RGB_PLANAR == _pix_fmt || BGR == _pix_fmt ||
-               YUV444 == _pix_fmt) {
+               YUV444 == _pix_fmt || RGB_32F == _pix_fmt ||
+               RGB_32F_PLANAR == _pix_fmt || RGB_32F_PLANAR_CONTIGUOUS == _pix_fmt) {
       bufferSize = bufferSize * 3U;
     } else if (Y == _pix_fmt) {
     } else {
@@ -513,7 +543,7 @@ TaskExecStatus CudaDownloadSurface::Execute() {
     m.dstPitch = pSurface->WidthInBytes(plane);
     m.WidthInBytes = pSurface->WidthInBytes(plane);
     m.Height = pSurface->Height(plane);
-
+    
     if (CUDA_SUCCESS != cuMemcpy2DAsync(&m, stream)) {
       return TASK_EXEC_FAIL;
     }
@@ -536,6 +566,7 @@ struct DemuxFrame_Impl {
   Buffer *pElementaryVideo;
   Buffer *pMuxingParams;
   Buffer *pSei;
+  Buffer *pPktData;
 
   DemuxFrame_Impl() = delete;
   DemuxFrame_Impl(const DemuxFrame_Impl &other) = delete;
@@ -547,12 +578,14 @@ struct DemuxFrame_Impl {
     pElementaryVideo = Buffer::MakeOwnMem(0U);
     pMuxingParams = Buffer::MakeOwnMem(sizeof(MuxingParams));
     pSei = Buffer::MakeOwnMem(0U);
+    pPktData = Buffer::MakeOwnMem(0U);
   }
 
   ~DemuxFrame_Impl() {
     delete pElementaryVideo;
     delete pMuxingParams;
     delete pSei;
+    delete pPktData;
   }
 };
 } // namespace VPF
@@ -581,11 +614,14 @@ DemuxFrame::DemuxFrame(const char *url, const char **ffmpeg_options,
 
 DemuxFrame::~DemuxFrame() { delete pImpl; }
 
+void DemuxFrame::Flush() { pImpl->demuxer.Flush(); }
+
 TaskExecStatus DemuxFrame::Execute() {
   ClearOutputs();
 
   uint8_t *pVideo = nullptr;
   MuxingParams params = {0};
+  PacketData pkt_data = {0};
 
   auto &videoBytes = pImpl->videoBytes;
   auto &demuxer = pImpl->demuxer;
@@ -594,13 +630,21 @@ TaskExecStatus DemuxFrame::Execute() {
   size_t seiBytes = 0U;
   bool needSEI = (nullptr != GetInput(0U));
 
-  if (!demuxer.Demux(pVideo, videoBytes, needSEI ? &pSEI : nullptr, &seiBytes)) {
+  auto pSeekCtxBuf = (Buffer *)GetInput(1U);
+  if (pSeekCtxBuf) {
+    SeekContext seek_ctx = *pSeekCtxBuf->GetDataAs<SeekContext>();
+    auto ret = demuxer.Seek(seek_ctx, pVideo, videoBytes, pkt_data,
+                            needSEI ? &pSEI : nullptr, &seiBytes);
+    if (!ret) {
+      return TASK_EXEC_FAIL;
+    }
+  } else if (!demuxer.Demux(pVideo, videoBytes, pkt_data,
+                            needSEI ? &pSEI : nullptr, &seiBytes)) {
     return TASK_EXEC_FAIL;
   }
 
   if (videoBytes) {
     pImpl->pElementaryVideo->Update(videoBytes, pVideo);
-    pImpl->demuxer.GetLastPacketData(params.videoContext.packetData);
     SetOutput(pImpl->pElementaryVideo, 0U);
 
     GetParams(params);
@@ -613,16 +657,21 @@ TaskExecStatus DemuxFrame::Execute() {
     SetOutput(pImpl->pSei, 2U);
   }
 
+  pImpl->pPktData->Update(sizeof(pkt_data), &pkt_data);
+  SetOutput((Token*)pImpl->pPktData, 3U);
+
   return TASK_EXEC_SUCCESS;
 }
 
 void DemuxFrame::GetParams(MuxingParams &params) const {
   params.videoContext.width = pImpl->demuxer.GetWidth();
   params.videoContext.height = pImpl->demuxer.GetHeight();
+  params.videoContext.num_frames = pImpl->demuxer.GetNumFrames();
   params.videoContext.frameRate = pImpl->demuxer.GetFramerate();
   params.videoContext.timeBase = pImpl->demuxer.GetTimebase();
   params.videoContext.streamIndex = pImpl->demuxer.GetVideoStreamIndex();
   params.videoContext.codec = FFmpeg2NvCodecId(pImpl->demuxer.GetVideoCodec());
+  params.videoContext.gop_size = pImpl->demuxer.GetGopSize();
 
   switch (pImpl->demuxer.GetPixelFormat()) {
   case AV_PIX_FMT_YUVJ420P:
@@ -680,6 +729,9 @@ private:
       break;
     case cudaVideoCodec_HEVC:
       videoCodecParams->codec_id = AV_CODEC_ID_H265;
+      break;
+    case cudaVideoCodec_VP9:
+      videoCodecParams->codec_id = AV_CODEC_ID_VP9;
       break;
     default:
       ss << __FUNCTION__;
@@ -782,20 +834,19 @@ TaskExecStatus MuxFrame::Execute() {
                          AVStream *stream, AVFormatContext *outFmtCtx,
                          map<uint32_t, uint32_t> &streamMapping,
                          uint32_t nativeStreamIndex) {
-    AVPacket pkt;
-    av_init_packet(&pkt);
-    pkt.size = 0U;
-    pkt.data = nullptr;
+    AVPacket pktSrc;
+    av_init_packet(&pktSrc);
+    pktSrc.size = 0U;
+    pktSrc.data = nullptr;
 
-    pkt.size = elementaryData.GetRawMemSize();
-    pkt.data = (uint8_t *)elementaryData.GetRawMemPtr();
-    pkt.stream_index = FindMappedStreamIndex(streamMapping, nativeStreamIndex);
+    pktSrc.size = elementaryData.GetRawMemSize();
+    pktSrc.data = (uint8_t *)elementaryData.GetRawMemPtr();
+    pktSrc.stream_index = FindMappedStreamIndex(streamMapping, nativeStreamIndex);
 
     auto timeBase = stream->time_base;
-    auto &packetData = muxParams.videoContext.packetData;
-    pkt.pos = -1;
+    pktSrc.pos = -1;
 
-    auto ret = av_interleaved_write_frame(outFmtCtx, &pkt);
+    auto ret = av_interleaved_write_frame(outFmtCtx, &pktSrc);
     if (ret < 0) {
       stringstream ss;
       ss << __FUNCTION__ << ": can't write video packet to URL. Error code "
@@ -857,19 +908,19 @@ struct NppResizeSurfacePacked3C_Impl final : ResizeSurface_Impl {
     auto dstPlane = pSurface->GetSurfacePlane();
 
     const Npp8u *pSrc = (const Npp8u *)srcPlane->GpuMem();
-    int nSrcStep = (int)srcPlane->Pitch();
+    int nSrcStep = (int)source.Pitch();
     NppiSize oSrcSize = {0};
-    oSrcSize.width = srcPlane->Width();
-    oSrcSize.height = srcPlane->Height();
+    oSrcSize.width = source.Width();
+    oSrcSize.height = source.Height();
     NppiRect oSrcRectROI = {0};
     oSrcRectROI.width = oSrcSize.width;
     oSrcRectROI.height = oSrcSize.height;
 
     Npp8u *pDst = (Npp8u *)dstPlane->GpuMem();
-    int nDstStep = (int)dstPlane->Pitch();
+    int nDstStep = (int)pSurface->Pitch();
     NppiSize oDstSize = {0};
-    oDstSize.width = dstPlane->Width();
-    oDstSize.height = dstPlane->Height();
+    oDstSize.width = pSurface->Width();
+    oDstSize.height = pSurface->Height();
     NppiRect oDstRectROI = {0};
     oDstRectROI.width = oDstSize.width;
     oDstRectROI.height = oDstSize.height;

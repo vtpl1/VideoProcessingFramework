@@ -13,9 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# Starting from Python 3.8 DLL search policy has changed.
+# We need to add path to CUDA DLLs explicitly.
+import sys
+import os
+
+if os.name == 'nt':
+    # Add CUDA_PATH env variable
+    cuda_path = os.environ["CUDA_PATH"]
+    if cuda_path:
+        os.add_dll_directory(cuda_path)
+    else:
+        print("CUDA_PATH environment variable is not set.", file = sys.stderr)
+        print("Can't set CUDA DLLs search path.", file = sys.stderr)
+        exit(1)
+
+    # Add PATH as well for minor CUDA releases
+    sys_path = os.environ["PATH"]
+    if sys_path:
+        paths = sys_path.split(';')
+        for path in paths:
+            if os.path.isdir(path):
+                os.add_dll_directory(path)
+    else:
+        print("PATH environment variable is not set.", file = sys.stderr)
+        exit(1)
+
 import PyNvCodec as nvc
 import numpy as np
-import sys
 
 def decode(gpuID, encFilePath, decFilePath):
     decFile = open(decFilePath, "wb")
@@ -26,7 +52,7 @@ def decode(gpuID, encFilePath, decFilePath):
     packet = np.ndarray(shape=(0), dtype=np.uint8)
     frameSize = int(nvDmx.Width() * nvDmx.Height() * 3 / 2)
     rawFrame = np.ndarray(shape=(frameSize), dtype=np.uint8)
-
+    frame_count = 0
     while True:
         # Demuxer has sync design, it returns packet every time it's called.
         # If demuxer can't return packet it usually means EOF.
@@ -39,14 +65,18 @@ def decode(gpuID, encFilePath, decFilePath):
         if nvDec.DecodeFrameFromPacket(rawFrame, packet):
             bits = bytearray(rawFrame)
             decFile.write(bits)
+            frame_count += 1
+        print(f"decoding: {frame_count}")
 
     # Now we flush decoder to emtpy decoded frames queue.
     while True:
         if nvDec.FlushSingleFrame(rawFrame):
             bits = bytearray(rawFrame)
             decFile.write(bits)
+            frame_count += 1
         else:
             break
+        print(f"flushing: {frame_count}")
     
 if __name__ == "__main__":
 

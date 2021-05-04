@@ -1,0 +1,15 @@
+build
+bin
+install/bin
+.devcontainer/Video_Codec_SDK_11.0.10.tar.xz
+session
+.pytest_cache
+__pycache__
+videos
+ffmpeg-4.3.2-2021-02-20-full_build-shared
+ffmpeg
+Video_Codec_SDK_11.0.10
+venv
+build_release
+Merged_20200918_90003.mp4
+*.AVF
