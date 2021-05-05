@@ -629,7 +629,7 @@ PyNvDecoder::getDecodedSurfaceFromPacket(std::vector<uint8_t> *pPacket) {
 
   if (pPacket && pPacket->size()) {
     elementaryVideo = unique_ptr<Buffer>(
-        Buffer::MakeOwnMem(pPacket->size(), pPacket->data()));
+        Buffer::Make(pPacket->size(), (void *)pPacket->data()));
   }
 
   upDecoder->SetInput(elementaryVideo ? elementaryVideo.get() : nullptr, 0U);
