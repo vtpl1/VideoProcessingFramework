@@ -211,8 +211,7 @@ class Worker {
         }
       }
       if (!parser) break;
-      std::vector<uint8_t> packet_in(buffer,
-                                     buffer + frame.frameSize);
+      std::vector<uint8_t> packet_in(buffer, buffer + frame.frameSize);
       if (!parser->ParseSinglePacket(packet_in)) break;
       if (!((parser->Width() > 0) && (parser->Height() > 0))) {
         std::cerr << "Width or Height is zero " << std::endl;
@@ -236,7 +235,8 @@ class Worker {
         std::cerr << "MONOTOSH: dhorechi kintu egiy gechi:" << e.what() << '\n';
         break;
       } catch (const CuvidParserException &e) {
-        std::cerr << "MONOTOSH: CuvidParserException dhorechi:" << e.what() << '\n';
+        std::cerr << "MONOTOSH: CuvidParserException dhorechi:" << e.what()
+                  << '\n';
         break;
       } catch (const std::runtime_error &e) {
         std::cerr << "MONOTOSH: dhorechi:" << e.what() << '\n';
@@ -307,8 +307,7 @@ class Worker {
     if (frame.mediaType != 2) {
       return true;
     }
-    std::vector<uint8_t> packet_in(buffer,
-                                   buffer + frame.frameSize);
+    std::vector<uint8_t> packet_in(buffer, buffer + frame.frameSize);
     std::shared_ptr<VPF::Surface> nv12_surface;
 
     try {
@@ -382,7 +381,7 @@ int main(int argc, char const *argv[]) {
   int nGpu;
   ThrowOnCudaErrorMain(cuDeviceGetCount(&nGpu), __LINE__);
   int number_of_channels = 1;
-  int gpu_id = 0;
+  int gpu_id = -1;
 
   /*
   if (argc < 2) {
@@ -430,6 +429,18 @@ int main(int argc, char const *argv[]) {
   // ss << "/1.AVI";
   // ss << "/Merged_20200918_90003.mp4";
   ss << "/1.AVF";
+  std::vector<size_t> free_mem_before;
+  for (size_t indx = 0; indx < nGpu; indx++) {
+    size_t free, total;
+    cudaSetDevice(indx);
+    int id;
+    cudaGetDevice(&id);
+    assert(id == indx);
+    cudaMemGetInfo(&free, &total);
+    free_mem_before.push_back(free);
+    std::cout << "GPU " << id << " memory: free=" << free / (1024 * 1024)
+              << " MB, total=" << total / (1024 * 1024) << " MB" << std::endl;
+  }
   // ss << "/workspaces/VideoProcessingFramework/Merged_20200918_90003.mp4";
   for (size_t indx = 0; indx < num_of_gpus; indx++) {
     int i = indx;
@@ -462,6 +473,23 @@ int main(int argc, char const *argv[]) {
     x->stop();
   }
   thread_list.clear();
+  for (size_t indx = 0; indx < nGpu; indx++) {
+    release_cuda_resource(indx);
+  }
+  for (size_t indx = 0; indx < nGpu; indx++) {
+    size_t free, total;
+    cudaSetDevice(indx);
+    int id;
+    cudaGetDevice(&id);
+    assert(id == indx);
+    cudaMemGetInfo(&free, &total);
+    long used_mem = (free_mem_before[indx] - free);
+    std::cout << "GPU " << id << " memory: free=" << free / (1024 * 1024)
+              << " MB, free_mem_before=" << free_mem_before[indx] / (1024 * 1024)
+              << " MB, total=" << total / (1024 * 1024)
+              << " MB, used=" << used_mem / (1024 * 1024) << " MB" << std::endl;
+  }
+
   std::cout << "VPF Becnchmark end press numeric \"1\" key" << std::endl;
   int i;
   std::cin >> i;

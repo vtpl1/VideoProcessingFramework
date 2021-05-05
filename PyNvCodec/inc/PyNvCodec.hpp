@@ -562,3 +562,4 @@ class DllExport PyBitStreamParser {
 
   cudaVideoCodec Codec() const;
 };
+size_t DllExport release_cuda_resource(size_t indx);

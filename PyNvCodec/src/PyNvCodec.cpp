@@ -118,10 +118,44 @@ public:
     return g_Streams[idx];
   }
 
-  /* Also a static function as we want to keep all the
-   * CUDA stuff within one Python module;
-   */
-  ~CudaResMgr() {
+  size_t release(size_t idx) {
+    size_t ret = 0;
+    if (idx >= GetNumGpus()) {
+      ret++;
+      return ret;
+    }
+    stringstream ss;
+    try {
+      {
+        lock_guard<mutex> lock(gStreamsMutex);
+        auto &cuStream = g_Streams[idx];
+        if (cuStream) {
+          ThrowOnCudaError(cuStreamDestroy(cuStream), __LINE__);
+        }
+        cuStream = nullptr;
+      }
+      {
+        lock_guard<mutex> lock(gContextsMutex);
+        auto &cuContext = g_Contexts[idx];
+        if (cuContext) {
+          ThrowOnCudaError(cuCtxDestroy(cuContext), __LINE__);
+        }
+        cuContext = nullptr;
+      }
+    } catch (runtime_error &e) {
+      cerr << e.what() << endl;
+      ret++;
+    }
+
+#ifdef TRACK_TOKEN_ALLOCATIONS
+    cout << "Checking token allocation counters: ";
+    auto res = CheckAllocationCounters();
+    cout << (res ? "No leaks dectected" : "Leaks detected") << endl;
+#endif
+    return 0;
+  }
+
+  void release1(size_t idx) {
     stringstream ss;
     try {
       {
@@ -153,14 +187,29 @@ public:
     cout << (res ? "No leaks dectected" : "Leaks detected") << endl;
 #endif
   }
+  /* Also a static function as we want to keep all the
+   * CUDA stuff within one Python module;
+   */
+  ~CudaResMgr() {    
+    for (int i = 0; i < GetNumGpus(); i++) {
+      release(i);
+    }
+  }
 
   static size_t GetNumGpus() { return Instance().g_Contexts.size(); }
+  static size_t ReleaseCudaResource(size_t idx) { 
+    return Instance().release(idx); 
+  }
 
   vector<CUcontext> g_Contexts;
   vector<CUstream> g_Streams;
   mutex gContextsMutex;
   mutex gStreamsMutex;
 };
+
+size_t DllExport release_cuda_resource(size_t idx) {
+  return CudaResMgr::ReleaseCudaResource(idx);
+}
 
 PyFrameUploader::PyFrameUploader(uint32_t width, uint32_t height,
                                  Pixel_Format format, uint32_t gpu_ID) {
@@ -2171,5 +2220,6 @@ PYBIND11_MODULE(PyNvCodec, m) {
             py::call_guard<py::gil_scoped_release>());
 
   m.def("GetNumGpus", &CudaResMgr::GetNumGpus);
+  m.def("ReleaseCudaResource", &CudaResMgr::ReleaseCudaResource);
 }
 #endif
