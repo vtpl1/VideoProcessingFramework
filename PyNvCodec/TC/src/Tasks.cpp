@@ -240,7 +240,7 @@ struct NvdecDecodeFrame_Impl {
       : stream(cuStream), context(cuContext),
         nvDecoder(cuStream, cuContext, videoCodec) {
     pLastSurface = Surface::Make(format);
-    pPacketData = Buffer::MakeOwnMem(1U);
+    pPacketData = Buffer::MakeOwnMem(sizeof(PacketData));
   }
 
   ~NvdecDecodeFrame_Impl() {
