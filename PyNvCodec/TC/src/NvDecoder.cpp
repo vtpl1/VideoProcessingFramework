@@ -20,11 +20,13 @@
 #include <sstream>
 #include <vector>
 
+#include "MemoryInterfaces.hpp"
 #include "NvCodecUtils.h"
 #include "NvDecoder.h"
 #include "nvcuvid.h"
 
 using namespace std;
+using namespace VPF;
 
 static auto ThrowOnCudaError = [](CUresult res, int lineNum = -1) {
   if (CUDA_SUCCESS != res) {
@@ -44,6 +46,11 @@ static auto ThrowOnCudaError = [](CUresult res, int lineNum = -1) {
 
     const char *errDesc = nullptr;
     if (CUDA_SUCCESS != cuGetErrorString(res, &errDesc)) {
+      // Try CUDA runtime function then;
+      errDesc = cudaGetErrorString((cudaError_t)res);
+    }
+
+    if (!errDesc) {
       ss << "No error string available" << endl;
     } else {
       ss << errDesc << endl;
@@ -162,20 +169,22 @@ struct NvDecoderImpl {
   cudaVideoChromaFormat m_eChromaFormat = cudaVideoChromaFormat_420;
   cudaVideoSurfaceFormat m_eOutputFormat = cudaVideoSurfaceFormat_NV12;
 
-  vector<CUdeviceptr> m_vpFrame;
-  queue<CUdeviceptr> m_vpFrameRet;
-  vector<int64_t> m_vTimestamp;
+  vector<DecodedFrameContext> m_DecFramesCtxVec;
+  queue<DecodedFrameContext> m_DecFramesCtxQueue;
 
   mutex m_mtxVPFrame;
 
   atomic<int> decode_error;
+  atomic<int> parser_error;
 };
 
 cudaVideoCodec NvDecoder::GetCodec() const { return p_impl->m_eCodec; }
 
-/* Return value from HandleVideoSequence() are interpreted as   :
- *  0: fail, 1: success, > 1: override dpb size of parser (set by
- * CUVIDPARSERPARAMS::ulMaxNumDecodeSurfaces while creating parser)
+/* Return value from HandleVideoSequence() are interpreted as:
+ *   0: fail
+ *   1: success
+ *   > 1: override dpb size of parser (set by CUVIDPARSERPARAMS::ulMaxNumDecodeSurfaces 
+ *        while creating parser)
  */
 int NvDecoder::HandleVideoSequence(CUVIDEOFORMAT *pVideoFormat) noexcept {
   try {
@@ -327,6 +336,7 @@ int NvDecoder::HandleVideoSequence(CUVIDEOFORMAT *pVideoFormat) noexcept {
     return nDecodeSurface;
   } catch (exception &e) {
     cerr << e.what() << endl;
+    p_impl->parser_error.store(1);
   }
 
   return 0;
@@ -431,10 +441,12 @@ int NvDecoder::ReconfigureDecoder(CUVIDEOFORMAT *pVideoFormat) {
 }
 
 /* Return value from HandlePictureDecode() are interpreted as:
- *  0: fail, >=1: suceeded
+ *   0: fail
+ *   >=1: suceeded
  */
 int NvDecoder::HandlePictureDecode(CUVIDPICPARAMS *pPicParams) noexcept {
   try {
+
     if (!p_impl->m_hDecoder) {
       throw runtime_error("Decoder not initialized.");
     }
@@ -447,12 +459,14 @@ int NvDecoder::HandlePictureDecode(CUVIDPICPARAMS *pPicParams) noexcept {
     return 1;
   } catch (exception &e) {
     cerr << e.what();
-    return 0;
+    p_impl->parser_error.store(1);
   }
+  return 0;
 }
 
 /* Return value from HandlePictureDisplay() are interpreted as:
- *  0: fail, >=1: suceeded
+ *   0: fail
+ *   >=1: suceeded
  */
 int NvDecoder::HandlePictureDisplay(CUVIDPARSERDISPINFO *pDispInfo) noexcept {
   try {
@@ -489,11 +503,12 @@ int NvDecoder::HandlePictureDisplay(CUVIDPARSERDISPINFO *pDispInfo) noexcept {
     }
 
     CUdeviceptr pDecodedFrame = 0;
+    int64_t pDecodedFrameIdx = 0;
     {
       lock_guard<mutex> lock(p_impl->m_mtxVPFrame);
       p_impl->m_nDecodedFrame++;
       bool isNotEnoughFrames =
-          (p_impl->m_nDecodedFrame > p_impl->m_vpFrame.size());
+          (p_impl->m_nDecodedFrame > p_impl->m_DecFramesCtxVec.size());
 
       if (isNotEnoughFrames) {
         p_impl->m_nFrameAlloc++;
@@ -506,13 +521,14 @@ int NvDecoder::HandlePictureDisplay(CUVIDPARSERDISPINFO *pDispInfo) noexcept {
 
         ThrowOnCudaError(cuMemAllocPitch(&pFrame, &p_impl->m_nDeviceFramePitch,
                                          p_impl->m_nWidth * p_impl->m_nBPP,
-                                         height, 16),
-                         __LINE__);
+                                         height, 16), __LINE__);
 
         ThrowOnCudaError(cuCtxPopCurrent(nullptr), __LINE__);
-        p_impl->m_vpFrame.push_back(pFrame);
+        p_impl->m_DecFramesCtxVec.push_back(DecodedFrameContext(
+            pFrame, pDispInfo->timestamp, pDispInfo->picture_index));
       }
-      pDecodedFrame = p_impl->m_vpFrame[p_impl->m_nDecodedFrame - 1];
+      pDecodedFrameIdx = p_impl->m_nDecodedFrame - 1;
+      pDecodedFrame = p_impl->m_DecFramesCtxVec[pDecodedFrameIdx].mem;
     }
 
     // Copy data from decoded frame;
@@ -545,20 +561,21 @@ int NvDecoder::HandlePictureDisplay(CUVIDPARSERDISPINFO *pDispInfo) noexcept {
       m.Height = p_impl->m_nChromaHeight;
       ThrowOnCudaError(cuMemcpy2DAsync(&m, p_impl->m_cuvidStream), __LINE__);
     }
+
     ThrowOnCudaError(cuCtxPopCurrent(nullptr), __LINE__);
-
-    if ((int)p_impl->m_vTimestamp.size() < p_impl->m_nDecodedFrame) {
-      p_impl->m_vTimestamp.resize(p_impl->m_vpFrame.size());
-    }
-    p_impl->m_vTimestamp[p_impl->m_nDecodedFrame - 1] = pDispInfo->timestamp;
-
     ThrowOnCudaError(cuvidUnmapVideoFrame(p_impl->m_hDecoder, dpSrcFrame),
                      __LINE__);
+
+    // Copy timestamp & picture index;
+    p_impl->m_DecFramesCtxVec[pDecodedFrameIdx].pts = pDispInfo->timestamp;
+    p_impl->m_DecFramesCtxVec[pDecodedFrameIdx].poc = 0U;
+
     return 1;
   } catch (exception &e) {
     cerr << e.what();
-    return 0;
+    p_impl->parser_error.store(1);
   }
+  return 0;
 }
 
 NvDecoder::NvDecoder(CUstream cuStream, CUcontext cuContext,
@@ -571,6 +588,7 @@ NvDecoder::NvDecoder(CUstream cuStream, CUcontext cuContext,
   p_impl->m_nMaxWidth = maxWidth;
   p_impl->m_nMaxHeight = maxHeight;
   p_impl->decode_error.store(0);
+  p_impl->parser_error.store(0);
 
   ThrowOnCudaError(cuvidCtxLockCreate(&p_impl->m_ctxLock, cuContext), __LINE__);
 
@@ -603,15 +621,15 @@ NvDecoder::~NvDecoder() {
   {
     lock_guard<mutex> lock(p_impl->m_mtxVPFrame);
     // Return all surfaces to m_vpFrame;
-    while (!p_impl->m_vpFrameRet.empty()) {
-      auto &surface = p_impl->m_vpFrameRet.front();
-      p_impl->m_vpFrameRet.pop();
-      p_impl->m_vpFrame.push_back(surface);
+    while (!p_impl->m_DecFramesCtxQueue.empty()) {
+      auto &surface = p_impl->m_DecFramesCtxQueue.front();
+      p_impl->m_DecFramesCtxQueue.pop();
+      p_impl->m_DecFramesCtxVec.push_back(surface);
     }
 
-    for (CUdeviceptr pFrame : p_impl->m_vpFrame) {
+    for (auto &dec_frame_ctx : p_impl->m_DecFramesCtxVec) {
       cuCtxPushCurrent(p_impl->m_cuContext);
-      cuMemFree(pFrame);
+      cuMemFree(dec_frame_ctx.mem);
       cuCtxPopCurrent(nullptr);
     }
   }
@@ -623,6 +641,10 @@ NvDecoder::~NvDecoder() {
 int NvDecoder::GetWidth() { return p_impl->m_nWidth; }
 
 int NvDecoder::GetHeight() { return p_impl->m_nLumaHeight; }
+
+int NvDecoder::GetChromaHeight() {
+  return p_impl->m_nChromaHeight * p_impl->m_nNumChromaPlanes;
+}
 
 int NvDecoder::GetFrameSize() {
   auto const num_pixels =
@@ -639,56 +661,60 @@ int NvDecoder::GetDeviceFramePitch() {
 
 int NvDecoder::GetBitDepth() { return p_impl->m_nBitDepthMinus8 + 8; }
 
-bool NvDecoder::DecodeLockSurface(const uint8_t *pData, size_t nSize,
-                                  CUdeviceptr &decSurface,
-                                  bool &isFrameReturned, uint32_t flags) {
+bool NvDecoder::DecodeLockSurface(Buffer const *encFrame,
+                                  uint64_t const &timestamp,
+                                  DecodedFrameContext &decCtx) {
   if (!p_impl->m_hParser) {
     throw runtime_error("Parser not initialized.");
   }
 
   if (1 == p_impl->decode_error.load()) {
-    throw runtime_error("HW decoder faced error. Re-create instance.");
+    throw decoder_error("HW decoder faced error. Re-create instance.");
+  }
+
+  if (1 == p_impl->parser_error.load()) {
+    throw cuvid_parser_error("Cuvid parser faced error.");
   }
 
   // Prepare CUVID packet with elementary bitstream;
   CUVIDSOURCEDATAPACKET packet = {0};
-  packet.payload = pData;
-  packet.payload_size = nSize;
-  packet.flags = flags | CUVID_PKT_TIMESTAMP;
-  packet.timestamp = 0;
-  if (!pData || nSize == 0) {
+  packet.payload = encFrame ? encFrame->GetDataAs<const unsigned char>() : nullptr;
+  packet.payload_size = encFrame ? encFrame->GetRawMemSize() : 0U;
+  packet.flags = CUVID_PKT_TIMESTAMP;
+  packet.timestamp = timestamp;
+  if (!packet.payload || 0 == packet.payload_size) {
     packet.flags |= CUVID_PKT_ENDOFSTREAM;
   }
 
   // Kick off HW decoding;
   ThrowOnCudaError(cuvidParseVideoData(p_impl->m_hParser, &packet), __LINE__);
 
-  isFrameReturned = false;
   lock_guard<mutex> lock(p_impl->m_mtxVPFrame);
   /* Move all decoded surfaces from decoder-owned pool to queue of frames ready
    * for display;
    */
   while (p_impl->m_nDecodedFrame > 0) {
-    p_impl->m_vpFrameRet.push(p_impl->m_vpFrame.front());
-    p_impl->m_vpFrame.erase(p_impl->m_vpFrame.begin());
+    p_impl->m_DecFramesCtxQueue.push(p_impl->m_DecFramesCtxVec.front());
+    p_impl->m_DecFramesCtxVec.erase(p_impl->m_DecFramesCtxVec.begin());
     p_impl->m_nDecodedFrame--;
   }
 
-  /* Return only one decoded frame;
+  /* Multiple frames may be ready for display.
+   * We return either 0 or 1 frame.
    */
-  if (!p_impl->m_vpFrameRet.empty()) {
-    isFrameReturned = true;
-    decSurface = p_impl->m_vpFrameRet.front();
-    p_impl->m_vpFrameRet.pop();
+  if (!p_impl->m_DecFramesCtxQueue.empty()) {
+    decCtx = p_impl->m_DecFramesCtxQueue.front();
+    p_impl->m_DecFramesCtxQueue.pop();
+    return true;
   }
 
-  return true;
+  return false;
 }
 
 // Adds frame back to pool of decoder-owned frames;
 void NvDecoder::UnlockSurface(CUdeviceptr &lockedSurface) {
   if (lockedSurface) {
     lock_guard<mutex> lock(p_impl->m_mtxVPFrame);
-    p_impl->m_vpFrame.push_back(lockedSurface);
+    p_impl->m_DecFramesCtxVec.push_back(DecodedFrameContext(lockedSurface, 0U, 0U));
   }
 }
