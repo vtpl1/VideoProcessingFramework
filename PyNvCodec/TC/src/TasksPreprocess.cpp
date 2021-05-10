@@ -54,7 +54,7 @@ struct nv12_rgb32f_deinterleave final : public NppPreprocessSurface_Impl {
     auto pDst = (Npp8u *)pSurfaceRGB8->PlanePtr();
     NppiSize oSizeRoi = {(int)pInput->Width(), (int)pInput->Height()};    
     CudaCtxPush ctxPush(cu_ctx);
-    NppLock lock(nppCtx);
+
     auto err = nppiNV12ToRGB_709HDTV_8u_P2C3R_Ctx(
         pSrc, pInput->Pitch(), pDst, pSurfaceRGB8->Pitch(), oSizeRoi, nppCtx);
     if (NPP_NO_ERROR != err) {

@@ -48,6 +48,8 @@ def decode(gpuID, encFilePath, decFilePath):
 
     nvDmx = nvc.PyFFmpegDemuxer(encFilePath)
     nvDec = nvc.PyNvDecoder(nvDmx.Width(), nvDmx.Height(), nvDmx.Format(), nvDmx.Codec(), gpuID)
+    nvCvt = nvc.PySurfaceConverter(nvDmx.Width(), nvDmx.Height(), nvDmx.Format(), nvc.PixelFormat.YUV420, gpuID)
+    nvDwn = nvc.PySurfaceDownloader(nvDmx.Width(), nvDmx.Height(), nvCvt.Format(), gpuID)
 
     packet = np.ndarray(shape=(0), dtype=np.uint8)
     frameSize = int(nvDmx.Width() * nvDmx.Height() * 3 / 2)
@@ -62,7 +64,13 @@ def decode(gpuID, encFilePath, decFilePath):
         # Decoder is async by design.
         # As it consumes packets from demuxer one at a time it may not return
         # decoded surface every time the decoding function is called.
-        if nvDec.DecodeFrameFromPacket(rawFrame, packet):
+        surface_nv12 = nvDec.DecodeSurfaceFromPacket(packet)
+        if not surface_nv12.Empty():
+            surface_yuv420 = nvCvt.Execute(surface_nv12)
+            if surface_yuv420.Empty():
+                break
+            if not nvDwn.DownloadSingleSurface(surface_yuv420, rawFrame):
+                break
             bits = bytearray(rawFrame)
             decFile.write(bits)
             frame_count += 1
@@ -70,17 +78,20 @@ def decode(gpuID, encFilePath, decFilePath):
 
     # Now we flush decoder to emtpy decoded frames queue.
     while True:
-        if nvDec.FlushSingleFrame(rawFrame):
-            bits = bytearray(rawFrame)
-            decFile.write(bits)
-            frame_count += 1
-        else:
+        surface_nv12 = nvDec.FlushSingleSurface()
+        if surface_nv12.Empty():
             break
-        print(f"flushing: {frame_count}")
+        surface_yuv420 = nvCvt.Execute(surface_nv12)
+        if surface_yuv420.Empty():
+            break
+        if not nvDwn.DownloadSingleSurface(surface_yuv420, rawFrame):
+            break
+        bits = bytearray(rawFrame)
+        decFile.write(bits)
     
 if __name__ == "__main__":
 
-    print("This sample decodes input video to raw NV12 file on given GPU.")
+    print("This sample decodes input video to raw YUV420 file on given GPU.")
     print("Usage: SampleDecode.py $gpu_id $input_file $output_file.")
 
     if(len(sys.argv) < 4):
