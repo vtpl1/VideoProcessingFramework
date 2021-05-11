@@ -52,7 +52,7 @@ RUN  echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu18
      wget -qO - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub | apt-key add - && \
          apt-get update -y && \
      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-         nsight-compute-2021.1.0 nsight-compute-addon-2020.1.1 && \
+         nsight-systems-2021.1.3 && \
      rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=vscode
