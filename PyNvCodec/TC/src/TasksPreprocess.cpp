@@ -156,6 +156,7 @@ struct nv12_rgb32f_deinterleave final : public NppPreprocessSurface_Impl {
 
       pDstDevice += m.WidthInBytes * m.Height;
     }
+    cuStreamSynchronize(nppCtx.hStream);
     return pSurfaceRGB32FPlanarContigous;
   }
   Surface *pSurfaceRGB8 = nullptr;

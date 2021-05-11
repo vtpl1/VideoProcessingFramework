@@ -11,10 +11,10 @@ configure_file(
 add_subdirectory(TC_CORE)
 find_package(CUDAToolkit)
 
-set(USE_NVTX FALSE CACHE BOOL "Use NVTX for profiling")
-if(USE_NVTX)
-	add_definitions(-DUSE_NVTX)
-endif()
+# set(USE_NVTX FALSE CACHE BOOL "Use NVTX for profiling")
+# if(USE_NVTX)
+# 	add_definitions(-DUSE_NVTX)
+# endif()
 
 set(VIDEO_CODEC_SDK_DIR "" CACHE PATH "Path to Nvidia Video Codec SDK")
 set(FFMPEG_DIR "" CACHE PATH "Path to FFMpeg")
@@ -104,7 +104,9 @@ target_include_directories(TC
 #     PUBLIC CUDA_API_PER_THREAD_DEFAULT_STREAM)
 
 target_compile_definitions(TC
-    PUBLIC NOMINMAX)
+    PUBLIC NOMINMAX
+    PUBLIC TRACK_TOKEN_ALLOCATIONS
+    PUBLIC USE_NVTX)
 
 
 target_link_libraries(TC
