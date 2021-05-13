@@ -16,6 +16,11 @@ find_package(CUDAToolkit)
 # 	add_definitions(-DUSE_NVTX)
 # endif()
 
+set(USE_NVTX FALSE CACHE BOOL "Use NVTX for profiling")
+if(USE_NVTX)
+	add_definitions(-DUSE_NVTX)
+endif()
+
 set(VIDEO_CODEC_SDK_DIR "" CACHE PATH "Path to Nvidia Video Codec SDK")
 set(FFMPEG_DIR "" CACHE PATH "Path to FFMpeg")
 

@@ -48,7 +48,7 @@ public:
 };
 
 class DllExport NvencEncodeFrame final : public Task {
- public:
+public:
   NvencEncodeFrame() = delete;
   NvencEncodeFrame(const NvencEncodeFrame &other) = delete;
   NvencEncodeFrame &operator=(const NvencEncodeFrame &other) = delete;
