@@ -147,46 +147,9 @@ public:
       ret++;
     }
 
-#ifdef TRACK_TOKEN_ALLOCATIONS
-    cout << "Checking token allocation counters: ";
-    auto res = CheckAllocationCounters();
-    cout << (res ? "No leaks dectected" : "Leaks detected") << endl;
-#endif
     return 0;
   }
 
-  void release1(size_t idx) {
-    stringstream ss;
-    try {
-      {
-        lock_guard<mutex> lock(gStreamsMutex);
-        for (auto &cuStream : g_Streams) {
-          if (cuStream) {
-            ThrowOnCudaError(cuStreamDestroy(cuStream), __LINE__);
-          }
-        }
-        g_Streams.clear();
-      }
-      {
-        lock_guard<mutex> lock(gContextsMutex);
-        for (auto &cuContext : g_Contexts) {
-          if (cuContext) {
-            ThrowOnCudaError(cuCtxDestroy(cuContext), __LINE__);
-          }
-        }
-        g_Contexts.clear();
-
-      }
-    } catch (runtime_error &e) {
-      cerr << e.what() << endl;
-    }
-
-#ifdef TRACK_TOKEN_ALLOCATIONS
-    cout << "Checking token allocation counters: ";
-    auto res = CheckAllocationCounters();
-    cout << (res ? "No leaks dectected" : "Leaks detected") << endl;
-#endif
-  }
   /* Also a static function as we want to keep all the
    * CUDA stuff within one Python module;
    */
@@ -194,6 +157,12 @@ public:
     for (int i = 0; i < GetNumGpus(); i++) {
       release(i);
     }
+
+#ifdef TRACK_TOKEN_ALLOCATIONS
+    cout << "Checking token allocation counters: ";
+    auto res = CheckAllocationCounters();
+    cout << (res ? "No leaks dectected" : "Leaks detected") << endl;
+#endif
   }
 
   static size_t GetNumGpus() { return Instance().g_Contexts.size(); }
