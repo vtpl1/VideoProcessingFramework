@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "H264BitStreamParser.hpp"
-
+#include <stdexcept>
 using namespace VPF;
 
 #ifdef GENERATE_PYTHON_BINDINGS
