@@ -21,10 +21,10 @@ if(USE_NVTX)
 	add_definitions(-DUSE_NVTX)
 endif()
 
-set(VIDEO_CODEC_SDK_DIR "" CACHE PATH "Path to Nvidia Video Codec SDK")
-set(FFMPEG_DIR "" CACHE PATH "Path to FFMpeg")
 
+if (defined $ENV{FFMPEG_DIR})
 set(FFMPEG_DIR $ENV{FFMPEG_DIR})
+endif()
 
 if (DEFINED FFMPEG_INCLUDE_DIR)
 	set(FFMPEG_INCLUDE_DIR "${FFMPEG_INCLUDE_DIR}" CACHE PATH "Path to FFmpeg includes")
@@ -59,8 +59,9 @@ find_library( AVUTIL_LIBRARY avutil
 
 message(STATUS "AVCODEC_INCLUDE_DIR ${AVCODEC_INCLUDE_DIR}")
 message(STATUS "SWRESAMPLE_LIBRARY ${SWRESAMPLE_LIBRARY}")
-
-set(VIDEO_CODEC_SDK_DIR $ENV{PATH_TO_SDK})
+if (defined $ENV{PATH_TO_SDK})
+    set(VIDEO_CODEC_SDK_DIR $ENV{PATH_TO_SDK})
+endif()
 
 message(STATUS "Searching for Video Codec SDK headers in ${VIDEO_CODEC_SDK_DIR}/include folder")
 find_path( VIDEO_CODEC_SDK_INCLUDE_DIR nvEncodeAPI.h ${VIDEO_CODEC_SDK_DIR}/include)

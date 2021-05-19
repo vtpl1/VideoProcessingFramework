@@ -36,7 +36,7 @@ int decode_to_rgb(int argc, char const* argv[]) {
       from_nv12_to_yuv.reset(new PySurfaceConverter(
           nv12_surface->Width(), nv12_surface->Height(),
           nv12_surface->PixelFormat(), Pixel_Format::YUV420, gpu_id));
-    auto yuv_surface = from_nv12_to_yuv->Execute(nv12_surface);
+    auto yuv_surface = from_nv12_to_yuv->Execute(nv12_surface, nullptr);
     if (!yuv_surface) break;
     if (yuv_surface->Empty()) break;
     if (!yuv_resizer)
@@ -49,14 +49,14 @@ int decode_to_rgb(int argc, char const* argv[]) {
       from_yuv_to_rgb.reset(new PySurfaceConverter(
           resized_yuv_surface->Width(), resized_yuv_surface->Height(),
           resized_yuv_surface->PixelFormat(), Pixel_Format::RGB, gpu_id));
-    auto rgb_surface = from_yuv_to_rgb->Execute(resized_yuv_surface);
+    auto rgb_surface = from_yuv_to_rgb->Execute(resized_yuv_surface, nullptr);
     if (!rgb_surface) break;
     if (rgb_surface->Empty()) break;
     if (!from_rgb_to_rgb_32f)
       from_rgb_to_rgb_32f.reset(new PySurfaceConverter(
           rgb_surface->Width(), rgb_surface->Height(),
           rgb_surface->PixelFormat(), Pixel_Format::RGB_32F, gpu_id));
-    auto rgb_32f_surface = from_rgb_to_rgb_32f->Execute(rgb_surface);
+    auto rgb_32f_surface = from_rgb_to_rgb_32f->Execute(rgb_surface, nullptr);
     if (!rgb_32f_surface) break;
     if (rgb_32f_surface->Empty()) break;
     if (!rgb_32f_downloader)
@@ -71,7 +71,7 @@ int decode_to_rgb(int argc, char const* argv[]) {
           rgb_32f_surface->Width(), rgb_32f_surface->Height(),
           rgb_32f_surface->PixelFormat(), Pixel_Format::RGB_32F_PLANAR, gpu_id));
     auto rgb_32f_planar_surface =
-        from_rgb_32f_to_rgb_32f_planar->Execute(rgb_32f_surface);
+        from_rgb_32f_to_rgb_32f_planar->Execute(rgb_32f_surface, nullptr);
     if (!rgb_32f_planar_surface) break;
     if (rgb_32f_planar_surface->Empty()) break;
     if (!rgb_32f_planar_downloader)
@@ -200,7 +200,7 @@ int demux_decode_to_rgb(int argc, char const* argv[]) {
       from_nv12_to_yuv.reset(new PySurfaceConverter(
           nv12_surface->Width(), nv12_surface->Height(),
           nv12_surface->PixelFormat(), Pixel_Format::YUV420, gpu_id));
-    auto yuv_surface = from_nv12_to_yuv->Execute(nv12_surface);
+    auto yuv_surface = from_nv12_to_yuv->Execute(nv12_surface, nullptr);
     if (!yuv_surface) break;
     if (yuv_surface->Empty()) break;
     if (!yuv_resizer)
@@ -213,14 +213,14 @@ int demux_decode_to_rgb(int argc, char const* argv[]) {
       from_yuv_to_rgb.reset(new PySurfaceConverter(
           resized_yuv_surface->Width(), resized_yuv_surface->Height(),
           resized_yuv_surface->PixelFormat(), Pixel_Format::RGB, gpu_id));
-    auto rgb_surface = from_yuv_to_rgb->Execute(resized_yuv_surface);
+    auto rgb_surface = from_yuv_to_rgb->Execute(resized_yuv_surface, nullptr);
     if (!rgb_surface) break;
     if (rgb_surface->Empty()) break;
     if (!from_rgb_to_rgb_32f)
       from_rgb_to_rgb_32f.reset(new PySurfaceConverter(
           rgb_surface->Width(), rgb_surface->Height(),
           rgb_surface->PixelFormat(), Pixel_Format::RGB_32F, gpu_id));
-    auto rgb_32f_surface = from_rgb_to_rgb_32f->Execute(rgb_surface);
+    auto rgb_32f_surface = from_rgb_to_rgb_32f->Execute(rgb_surface, nullptr);
     if (!rgb_32f_surface) break;
     if (rgb_32f_surface->Empty()) break;
     if (!rgb_32f_downloader)
@@ -235,7 +235,7 @@ int demux_decode_to_rgb(int argc, char const* argv[]) {
           rgb_32f_surface->Width(), rgb_32f_surface->Height(),
           rgb_32f_surface->PixelFormat(), Pixel_Format::RGB_32F_PLANAR, gpu_id));
     auto rgb_32f_planar_surface =
-        from_rgb_32f_to_rgb_32f_planar->Execute(rgb_32f_surface);
+        from_rgb_32f_to_rgb_32f_planar->Execute(rgb_32f_surface, nullptr);
     if (!rgb_32f_planar_surface) break;
     if (rgb_32f_planar_surface->Empty()) break;
     if (!rgb_32f_planar_downloader)
@@ -319,6 +319,7 @@ int demux_and_decode(int argc, char const* argv[]) {
     }
     std::cout << "MONOTOSH: flushing frame" << decoded_frame_count << " encoded frames: " << encoded_frame_count << std::endl;
   }
+  return 0;
 }
 
 int main(int argc, char const* argv[]) { return demux_and_decode(argc, argv); }

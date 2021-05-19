@@ -280,14 +280,25 @@ PySurfaceConverter::PySurfaceConverter(uint32_t width, uint32_t height,
   upConverter.reset(ConvertSurface::Make(
       width, height, inFormat, outFormat, CudaResMgr::Instance().GetCtx(gpuID),
       CudaResMgr::Instance().GetStream(gpuID)));
+  upCtxBuffer.reset(Buffer::MakeOwnMem(sizeof(ColorspaceConversionContext)));
 }
 
-shared_ptr<Surface> PySurfaceConverter::Execute(shared_ptr<Surface> surface) {
+shared_ptr<Surface>
+PySurfaceConverter::Execute(shared_ptr<Surface> surface,
+                            shared_ptr<ColorspaceConversionContext> context) {
   if (!surface) {
     return shared_ptr<Surface>(Surface::Make(outputFormat));
   }
 
+  upConverter->ClearInputs();
+
   upConverter->SetInput(surface.get(), 0U);
+  
+  if (context) {
+    upCtxBuffer->CopyFrom(sizeof(ColorspaceConversionContext), context.get());
+    upConverter->SetInput((Token *)upCtxBuffer.get(), 1U);
+  }
+  
   if (TASK_EXEC_SUCCESS != upConverter->Execute()) {
     return shared_ptr<Surface>(Surface::Make(outputFormat));
   }
@@ -458,6 +469,18 @@ uint32_t PyFFmpegDemuxer::Width() const {
   upDemuxer->GetParams(params);
   return params.videoContext.width;
 }
+
+ColorSpace PyFFmpegDemuxer::GetColorSpace() const {
+  MuxingParams params;
+  upDemuxer->GetParams(params);
+  return params.videoContext.color_space;
+};
+
+ColorRange PyFFmpegDemuxer::GetColorRange() const {
+  MuxingParams params;
+  upDemuxer->GetParams(params);
+  return params.videoContext.color_range;
+};
 
 uint32_t PyFFmpegDemuxer::Height() const {
   MuxingParams params;
@@ -679,6 +702,30 @@ void PyNvDecoder::LastPacketData(PacketData &packetData) const {
   } else {
     throw runtime_error("Decoder was created without built-in demuxer support. "
                         "Please get packet data from demuxer instead");
+  }
+}
+
+ColorSpace PyNvDecoder::GetColorSpace() const {
+  if (upDemuxer) {
+
+    MuxingParams params;
+    upDemuxer->GetParams(params);
+    return params.videoContext.color_space;
+  } else {
+    throw runtime_error("Decoder was created without built-in demuxer support. "
+                        "Please get color space from demuxer instead");
+  }
+}
+
+ColorRange PyNvDecoder::GetColorRange() const {
+  if (upDemuxer) {
+
+    MuxingParams params;
+    upDemuxer->GetParams(params);
+    return params.videoContext.color_range;
+  } else {
+    throw runtime_error("Decoder was created without built-in demuxer support. "
+                        "Please get color range from demuxer instead");
   }
 }
 
@@ -1811,6 +1858,18 @@ PYBIND11_MODULE(PyNvCodec, m) {
       .value("RGB_32F_PLANAR_CONTIGUOUS", Pixel_Format::RGB_32F_PLANAR_CONTIGUOUS)
       .export_values();
 
+    py::enum_<ColorSpace>(m, "ColorSpace")
+      .value("BT_601", ColorSpace::BT_601)
+      .value("BT_709", ColorSpace::BT_709)
+      .value("UNSPEC", ColorSpace::UNSPEC)
+      .export_values();
+
+    py::enum_<ColorRange>(m, "ColorRange")
+        .value("MPEG", ColorRange::MPEG)
+        .value("JPEG", ColorRange::JPEG)
+        .value("UDEF", ColorRange::UDEF)
+        .export_values();
+
   py::enum_<cudaVideoCodec>(m, "CudaVideoCodec")
       .value("H264", cudaVideoCodec::cudaVideoCodec_H264)
       .value("HEVC", cudaVideoCodec::cudaVideoCodec_HEVC)
@@ -1837,6 +1896,15 @@ PYBIND11_MODULE(PyNvCodec, m) {
       .def_readwrite("pos", &PacketData::pos)
       .def_readwrite("poc", &PacketData::poc)
       .def_readwrite("duration", &PacketData::duration);
+
+    py::class_<ColorspaceConversionContext,
+             shared_ptr<ColorspaceConversionContext>>(
+      m, "ColorspaceConversionContext")
+      .def(py::init<>())
+      .def(py::init<ColorSpace, ColorRange>(), py::arg("color_space"),
+           py::arg("color_range"))
+      .def_readwrite("color_space", &ColorspaceConversionContext::color_space)
+      .def_readwrite("color_range", &ColorspaceConversionContext::color_range);
 
   py::class_<SurfacePlane, shared_ptr<SurfacePlane>>(m, "SurfacePlane")
       .def("Width", &SurfacePlane::Width)
@@ -2003,7 +2071,9 @@ PYBIND11_MODULE(PyNvCodec, m) {
       .def("Numframes", &PyFFmpegDemuxer::Numframes)
       .def("Codec", &PyFFmpegDemuxer::Codec)
       .def("LastPacketData", &PyFFmpegDemuxer::GetLastPacketData)
-      .def("Seek", &PyFFmpegDemuxer::Seek);
+      .def("Seek", &PyFFmpegDemuxer::Seek)
+      .def("ColorSpace", &PyFFmpegDemuxer::GetColorSpace)
+      .def("ColorRange", &PyFFmpegDemuxer::GetColorRange);
 
   py::class_<PyNvDecoder>(m, "PyNvDecoder")
       .def(py::init<uint32_t, uint32_t, Pixel_Format, cudaVideoCodec,
@@ -2012,6 +2082,8 @@ PYBIND11_MODULE(PyNvCodec, m) {
       .def(py::init<const string &, int>())
       .def("Width", &PyNvDecoder::Width)
       .def("Height", &PyNvDecoder::Height)
+      .def("ColorSpace", &PyNvDecoder::GetColorSpace)
+      .def("ColorRange", &PyNvDecoder::GetColorRange)
       .def("LastPacketData", &PyNvDecoder::LastPacketData)
       .def("Framerate", &PyNvDecoder::Framerate)
       .def("Timebase", &PyNvDecoder::Timebase)
