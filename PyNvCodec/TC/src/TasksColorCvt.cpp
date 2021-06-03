@@ -112,8 +112,18 @@ struct nv12_rgb final : public NppConvertSurface_Impl {
         err = nppiNV12ToRGB_709HDTV_8u_P2C3R_Ctx(
             pSrc, pInput->Pitch(), pDst, pSurface->Pitch(), oSizeRoi, nppCtx);
       } else {
+#if (__CUDACC_VER_MAJOR__ < 11)
+        cerr
+            << "Rec. 702 NV12 -> RGB MPEG range conversion isn't supported yet."
+            << endl
+            << "Convert NV12 -> YUV first and then do Rec. 601 "
+               "YUV -> RGB MPEG range conversion."
+            << endl;
+        return nullptr;
+#else
         err = nppiNV12ToRGB_709CSC_8u_P2C3R_Ctx(
             pSrc, pInput->Pitch(), pDst, pSurface->Pitch(), oSizeRoi, nppCtx);
+#endif
       }
       break;
     case BT_601:

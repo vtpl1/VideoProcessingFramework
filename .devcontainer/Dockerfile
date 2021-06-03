@@ -55,6 +55,8 @@ RUN  echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu18
          nsight-systems-2021.1.3 && \
      rm -rf /var/lib/apt/lists/*
 
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
