@@ -9,17 +9,6 @@ configure_file(
 
 
 add_subdirectory(TC_CORE)
-find_package(CUDAToolkit)
-
-# set(USE_NVTX FALSE CACHE BOOL "Use NVTX for profiling")
-# if(USE_NVTX)
-# 	add_definitions(-DUSE_NVTX)
-# endif()
-
-set(USE_NVTX FALSE CACHE BOOL "Use NVTX for profiling")
-if(USE_NVTX)
-	add_definitions(-DUSE_NVTX)
-endif()
 
 
 if (defined $ENV{FFMPEG_DIR})
@@ -59,62 +48,27 @@ find_library( AVUTIL_LIBRARY avutil
 
 message(STATUS "AVCODEC_INCLUDE_DIR ${AVCODEC_INCLUDE_DIR}")
 message(STATUS "SWRESAMPLE_LIBRARY ${SWRESAMPLE_LIBRARY}")
-message(STATUS "PATH_TO_SDK: ${PATH_TO_SDK} ENV_PATH_TO_SDK $ENV{PATH_TO_SDK}")
-
-if (DEFINED ENV{PATH_TO_SDK})
-    set(VIDEO_CODEC_SDK_DIR $ENV{PATH_TO_SDK})
-endif()
-
-message(STATUS "Searching for Video Codec SDK headers in ${VIDEO_CODEC_SDK_DIR}/include folder")
-find_path( VIDEO_CODEC_SDK_INCLUDE_DIR nvEncodeAPI.h ${VIDEO_CODEC_SDK_DIR}/include)
-# Video Codec SDK 10 has headers in folder with different name
-if (VIDEO_CODEC_SDK_INCLUDE_DIR-NOTFOUND STREQUAL ${VIDEO_CODEC_SDK_INCLUDE_DIR})
-	message(STATUS "Searching for Video Codec SDK headers in ${VIDEO_CODEC_SDK_DIR}/Interface folder")
-	find_path( VIDEO_CODEC_SDK_INCLUDE_DIR nvEncodeAPI.h ${VIDEO_CODEC_SDK_DIR}/Interface)
-endif()
-
-if(UNIX)
-	find_library( NVCUVID_LIBRARY nvcuvid ${VIDEO_CODEC_SDK_DIR}/Lib/linux/stubs/x86_64)
-	find_library( NVENCODE_LIBRARY nvidia-encode ${VIDEO_CODEC_SDK_DIR}/Lib/linux/stubs/x86_64)
-elseif(WIN32)
-	find_library( NVCUVID_LIBRARY nvcuvid ${VIDEO_CODEC_SDK_DIR}/Lib/x64)
-	find_library( NVENCODE_LIBRARY nvencodeapi ${VIDEO_CODEC_SDK_DIR}/Lib/x64)
-endif(UNIX)
-message(STATUS "VIDEO_CODEC_SDK_INCLUDE_DIR ${VIDEO_CODEC_SDK_INCLUDE_DIR}")
 
 add_library(TC STATIC
-    src/Resize.cu
     src/FFmpegDemuxer.cpp
     src/FfmpegSwDecoder.cpp
     src/MemoryInterfaces.cpp
-    src/NppCommon.cpp
-    src/NvCodecCliOptions.cpp
-    src/NvDecoder.cpp
-    src/NvEncoder.cpp
-    src/NvEncoderCuda.cpp
     src/Tasks.cpp
-    src/TasksColorCvt.cpp
-    src/TasksPreprocess.cpp
     src/TasksParser.cpp
     src/H264BitStreamParser.cpp
 )
-
-set_property(TARGET TC PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)
 
 target_include_directories(TC
     PUBLIC inc
     PUBLIC ${AVCODEC_INCLUDE_DIR}
     PUBLIC ${AVFORMAT_INCLUDE_DIR}
     PUBLIC ${AVUTIL_INCLUDE_DIR}
-    PUBLIC ${VIDEO_CODEC_SDK_INCLUDE_DIR}
 )
-# target_compile_definitions(TC
-#     PUBLIC CUDA_API_PER_THREAD_DEFAULT_STREAM)
 
 target_compile_definitions(TC
     PUBLIC NOMINMAX
     PUBLIC TRACK_TOKEN_ALLOCATIONS
-    PUBLIC USE_NVTX)
+)
 
 
 target_link_libraries(TC
@@ -123,13 +77,6 @@ target_link_libraries(TC
     PUBLIC ${AVFORMAT_LIBRARY}
     PUBLIC ${AVCODEC_LIBRARY}
     PUBLIC ${AVUTIL_LIBRARY}
-    PUBLIC ${NVCUVID_LIBRARY}
-    PUBLIC ${NVENCODE_LIBRARY}
-    PUBLIC CUDA::cudart
-    PUBLIC CUDA::nppicc
-    PUBLIC CUDA::nppig
-    PUBLIC CUDA::nppidei
-    PUBLIC CUDA::cuda_driver
 )
 
 install(FILES $<TARGET_FILE:TC>                                         DESTINATION bin)

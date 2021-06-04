@@ -1,18 +1,14 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(vpf LANGUAGES CUDA CXX)
+project(vpf LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if (WIN32)
-set(VIDEO_CODEC_SDK_DIR ${CMAKE_SOURCE_DIR}/Video_Codec_SDK_11.0.10 CACHE PATH "Path to Nvidia Video Codec SDK")
 set(FFMPEG_DIR ${CMAKE_SOURCE_DIR}/ffmpeg CACHE PATH "Path to FFMpeg")
 endif()
 #VIDEO_CODEC_SDK_DIR="../Video_Codec_SDK_11.0.10" -DFFMPEG_DIR="../ffmpeg
-add_subdirectory(PyNvCodec)
-if (NOT WIN32)
-add_subdirectory(PytorchNvCodec)
-endif()
-add_subdirectory(sample_decode)
+add_subdirectory(PyNvCodec/TC)
+
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/SampleDecode.py				DESTINATION bin)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/SampleEncode.py				DESTINATION bin)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/SampleDecodeSw.py				DESTINATION bin)
