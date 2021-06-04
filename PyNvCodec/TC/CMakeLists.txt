@@ -50,12 +50,12 @@ message(STATUS "AVCODEC_INCLUDE_DIR ${AVCODEC_INCLUDE_DIR}")
 message(STATUS "SWRESAMPLE_LIBRARY ${SWRESAMPLE_LIBRARY}")
 
 add_library(TC STATIC
-    src/FFmpegDemuxer.cpp
-    src/FfmpegSwDecoder.cpp
+    # src/FFmpegDemuxer.cpp
+    # src/FfmpegSwDecoder.cpp
     src/MemoryInterfaces.cpp
-    src/Tasks.cpp
-    src/TasksParser.cpp
-    src/H264BitStreamParser.cpp
+    # src/Tasks.cpp
+    # src/TasksParser.cpp
+    # src/H264BitStreamParser.cpp
 )
 
 target_include_directories(TC
