@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <map>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -296,16 +297,14 @@ TaskExecStatus FfmpegDecodeFrame::GetSideData(AVFrameSideDataType data_type) {
   return TaskExecStatus::TASK_EXEC_FAIL;
 }
 
-FfmpegDecodeFrame *FfmpegDecodeFrame::Make(const char *URL,
-                                           NvDecoderClInterface &cli_iface) {
-  return new FfmpegDecodeFrame(URL, cli_iface);
+FfmpegDecodeFrame *FfmpegDecodeFrame::Make(const char *URL) {
+  return new FfmpegDecodeFrame(URL);
 }
 
-FfmpegDecodeFrame::FfmpegDecodeFrame(const char *URL,
-                                     NvDecoderClInterface &cli_iface)
+FfmpegDecodeFrame::FfmpegDecodeFrame(const char *URL)
     : Task("FfmpegDecodeFrame", FfmpegDecodeFrame::num_inputs,
            FfmpegDecodeFrame::num_outputs) {
-  pImpl = new FfmpegDecodeFrame_Impl(URL, cli_iface.GetOptions());
+  pImpl = new FfmpegDecodeFrame_Impl(URL, nullptr);
 }
 
 FfmpegDecodeFrame::~FfmpegDecodeFrame() { delete pImpl; }

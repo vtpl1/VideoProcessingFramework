@@ -26,8 +26,6 @@ extern "C" {
 }
 
 #include "CodecsSupport.hpp"
-#include "NvCodecUtils.h"
-#include "cuviddec.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -188,27 +186,3 @@ public:
   static int ReadPacket(void *opaque, uint8_t *pBuf, int nBuf);
 };
 
-inline cudaVideoCodec FFmpeg2NvCodecId(AVCodecID id) {
-  switch (id) {
-  case AV_CODEC_ID_MPEG1VIDEO:
-    return cudaVideoCodec_MPEG1;
-  case AV_CODEC_ID_MPEG2VIDEO:
-    return cudaVideoCodec_MPEG2;
-  case AV_CODEC_ID_MPEG4:
-    return cudaVideoCodec_MPEG4;
-  case AV_CODEC_ID_VC1:
-    return cudaVideoCodec_VC1;
-  case AV_CODEC_ID_H264:
-    return cudaVideoCodec_H264;
-  case AV_CODEC_ID_HEVC:
-    return cudaVideoCodec_HEVC;
-  case AV_CODEC_ID_VP8:
-    return cudaVideoCodec_VP8;
-  case AV_CODEC_ID_VP9:
-    return cudaVideoCodec_VP9;
-  case AV_CODEC_ID_MJPEG:
-    return cudaVideoCodec_JPEG;
-  default:
-    return cudaVideoCodec_NumCodecs;
-  }
-}

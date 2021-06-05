@@ -13,8 +13,10 @@
 
 #pragma once
 #include "MemoryInterfaces.hpp"
-#include "cuviddec.h"
 #include <stdint.h>
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
 
 struct PacketData {
   int64_t pts;
@@ -32,7 +34,7 @@ struct VideoContext {
   double frameRate;
   double timeBase;
   uint32_t streamIndex;
-  cudaVideoCodec codec;
+  AVCodecID codec;
   Pixel_Format format;
   ColorSpace color_space;
   ColorRange color_range;

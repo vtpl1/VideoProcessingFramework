@@ -10,28 +10,26 @@ configure_file(
 add_subdirectory(pybind11-2.1.1)
 add_subdirectory(TC)
 
-pybind11_add_module(PyNvCodec 
+pybind11_add_module(PyNvCodecCpu 
     src/PyNvCodec.cpp)
 
-target_include_directories(PyNvCodec 
+target_include_directories(PyNvCodecCpu 
     PUBLIC inc)
 
-target_link_libraries(PyNvCodec
+target_link_libraries(PyNvCodecCpu
     PUBLIC TC)
 
-target_compile_definitions(PyNvCodec
+target_compile_definitions(PyNvCodecCpu
     PRIVATE GENERATE_PYTHON_BINDINGS)
 
-add_library(NvCodec STATIC
+add_library(NvCodecCpu STATIC
     src/PyNvCodec.cpp)
 
-target_include_directories(NvCodec 
+target_include_directories(NvCodecCpu 
     PUBLIC inc)
 
-target_link_libraries(NvCodec
+target_link_libraries(NvCodecCpu
     PUBLIC TC)
 
-set_property(TARGET PyNvCodec PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)
-set_property(TARGET NvCodec PROPERTY CUDA_ARCHITECTURES 52 53 60 61 62 70 72 75)
 
-install(FILES $<TARGET_FILE:PyNvCodec>	                                DESTINATION bin)
+install(FILES $<TARGET_FILE:PyNvCodecCpu>	                                DESTINATION bin)

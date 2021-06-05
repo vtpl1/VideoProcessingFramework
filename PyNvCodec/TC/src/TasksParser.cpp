@@ -62,7 +62,7 @@ void ParsePacket::GetParams(MuxingParams &params) const {
   params.videoContext.frameRate = 25;
   params.videoContext.timeBase = 1000;
   params.videoContext.streamIndex = 0;
-  params.videoContext.codec = cudaVideoCodec_H264;
+  params.videoContext.codec = AV_CODEC_ID_H264;
   params.videoContext.format = NV12;
 }
 

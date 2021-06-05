@@ -12,7 +12,6 @@
  */
 
 #include "FFmpegDemuxer.h"
-#include "NvCodecUtils.h"
 #include "libavutil/avstring.h"
 #include "libavutil/avutil.h"
 #include <iostream>
@@ -456,7 +455,7 @@ FFmpegDemuxer::FFmpegDemuxer(AVFormatContext *fmtcx) : fmtc(fmtcx) {
   eChromaFormat = (AVPixelFormat)fmtc->streams[videoStream]->codecpar->format;
   nb_frames = fmtc->streams[videoStream]->nb_frames;
   color_space = fmtc->streams[videoStream]->codec->colorspace;
-  color_range = fmtc->streams[videoStream]->codec->color_range;
+  color_range = fmtc->streams[videoStream]->codecpar->color_range;
 
   is_mp4H264 = (eVideoCodec == AV_CODEC_ID_H264);
   is_mp4HEVC = (eVideoCodec == AV_CODEC_ID_HEVC);
