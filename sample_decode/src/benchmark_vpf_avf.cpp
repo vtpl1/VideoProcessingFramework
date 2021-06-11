@@ -156,6 +156,7 @@ class Worker {
   int to_height;
   float fps;
   int frame_count = 0;
+  int monotonic_frame_count = 0;
   int consecutive_empty_surface_count = 0;
   std::atomic<bool> shutdown_requested{false};
   std::atomic<bool> done{false};  // Use an atomic flag.
@@ -165,6 +166,8 @@ class Worker {
   std::unique_ptr<PyBitStreamParser> parser;
   std::unique_ptr<PyNvDecoder> nv_dec;
   std::unique_ptr<PySurfacePreprocessor> from_nv12_to_rgb_32f_planar;
+  std::unique_ptr<PySurfaceDownloader> rgb_32f_planar_downloader;
+  std::vector<float> rgb_32f_planar_frame;
   int bufferLen = 2 * 1024 * 1024;
   uint8_t *buffer;
 
@@ -341,9 +344,26 @@ class Worker {
         from_nv12_to_rgb_32f_planar->Execute(nv12_surface);
     if (!rgb_32f_planar_surface) return false;
     if (rgb_32f_planar_surface->Empty()) return false;
-
+    if (!rgb_32f_planar_downloader)
+      rgb_32f_planar_downloader.reset(new PySurfaceDownloader(
+          rgb_32f_planar_surface->Width(), rgb_32f_planar_surface->Height(),
+          rgb_32f_planar_surface->PixelFormat(), gpu_id));
+    if (!rgb_32f_planar_downloader->DownloadSingleSurface(rgb_32f_planar_surface,
+                                                          rgb_32f_planar_frame))
     frame_count++;
+    monotonic_frame_count++;
     // std::cout << "frame_count: " << frame_count << std::endl;
+    std::stringstream unique_file_name;
+    unique_file_name << "dump/out" << std::setfill('0') << std::setw(5)
+                     << monotonic_frame_count << ".ppm";
+    // writePPMFromRgb(rgb_32f_frame.data(), rgb_32f_surface->Height(),
+    //                 rgb_32f_surface->Width(),
+    //                 unique_file_name.str().c_str());
+    writePPMFromRgbPlanar(
+        rgb_32f_planar_frame.data(), rgb_32f_planar_surface->Height(),
+        rgb_32f_planar_surface->Width(), unique_file_name.str().c_str());
+    if (monotonic_frame_count > 1000)
+      return false;
     return true;
   }
   void run(void) {
