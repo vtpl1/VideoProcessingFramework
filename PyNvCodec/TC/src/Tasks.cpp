@@ -46,6 +46,10 @@ constexpr auto TASK_EXEC_FAIL = TaskExecStatus::TASK_EXEC_FAIL;
 
 namespace VPF {
 
+auto const cuda_stream_sync = [](void *stream) {
+  cuStreamSynchronize((CUstream)stream);
+};
+
 struct NvencEncodeFrame_Impl {
   using packet = vector<uint8_t>;
 
@@ -130,7 +134,7 @@ NvencEncodeFrame::NvencEncodeFrame(CUstream cuStream, CUcontext cuContext,
     :
 
       Task("NvencEncodeFrame", NvencEncodeFrame::numInputs,
-           NvencEncodeFrame::numOutputs) {
+           NvencEncodeFrame::numOutputs, cuda_stream_sync, (void *)cuStream) {
   pImpl = new NvencEncodeFrame_Impl(format, cli_iface, cuContext, cuStream,
                                     width, height, verbose);
 }
@@ -270,7 +274,7 @@ NvdecDecodeFrame::NvdecDecodeFrame(CUstream cuStream, CUcontext cuContext,
     :
 
       Task("NvdecDecodeFrame", NvdecDecodeFrame::numInputs,
-           NvdecDecodeFrame::numOutputs) {
+           NvdecDecodeFrame::numOutputs, cuda_stream_sync, (void *)cuStream) {
   pImpl = new NvdecDecodeFrame_Impl(cuStream, cuContext, videoCodec, format);
 }
 
@@ -409,10 +413,6 @@ static size_t GetElemSize(Pixel_Format format) {
     throw invalid_argument(ss.str());
   }
 }
-
-auto const cuda_stream_sync = [](void *stream) {
-  cuStreamSynchronize((CUstream)stream);
-};
 
 struct CudaUploadFrame_Impl {
   CUstream cuStream;
@@ -818,9 +818,6 @@ struct NppResizeSurfacePacked3C_Impl final : ResizeSurface_Impl {
 
     return TASK_EXEC_SUCCESS;
   }
-
-  NppStreamContext nppCtx;
-  CUcontext ctx;
 };
 
 // Resize planar 8 bit surface (YUV420, YCbCr420);
@@ -881,10 +878,14 @@ struct NppResizeSurfacePlanar420_Impl final : ResizeSurface_Impl {
 
 }; // namespace VPF
 
+auto const cuda_stream_sync = [](void *stream) {
+  cuStreamSynchronize((CUstream)stream);
+};
+
 ResizeSurface::ResizeSurface(uint32_t width, uint32_t height,
                              Pixel_Format format, CUcontext ctx, CUstream str)
     : Task("NppResizeSurface", ResizeSurface::numInputs,
-           ResizeSurface::numOutputs) {
+           ResizeSurface::numOutputs, cuda_stream_sync, (void *)str) {
   if (RGB == format || BGR == format) {
     pImpl = new NppResizeSurfacePacked3C_Impl(width, height, ctx, str, format);
   } else if (YUV420 == format || YCBCR == format) {

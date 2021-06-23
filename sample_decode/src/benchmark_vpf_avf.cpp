@@ -517,9 +517,9 @@ int main(int argc, char const *argv[]) {
     x->stop();
   }
   thread_list.clear();
-  for (size_t indx = 0; indx < nGpu; indx++) {
-    release_cuda_resource(indx);
-  }
+  // for (size_t indx = 0; indx < nGpu; indx++) {
+  //   release_cuda_resource(indx);
+  // }
   for (size_t indx = 0; indx < nGpu; indx++) {
     size_t free, total;
     cudaSetDevice(indx);
