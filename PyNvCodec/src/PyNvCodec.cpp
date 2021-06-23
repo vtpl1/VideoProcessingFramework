@@ -1880,6 +1880,17 @@ PySurfacePreprocessor::PySurfacePreprocessor(
       CudaResMgr::Instance().GetStream(gpuID)));
 }
 
+PySurfacePreprocessor::PySurfacePreprocessor(uint32_t in_width, uint32_t in_height,
+    Pixel_Format inFormat, 
+    uint32_t out_width, uint32_t out_height,
+    Pixel_Format outFormat,
+    CUcontext ctx, CUstream str)
+    : outputFormat(outFormat) {
+  upPreprocessor.reset(PreprocessSurface::Make(
+      in_width, in_height, inFormat, out_width, out_height, outFormat,
+      ctx, str));
+}
+
 std::shared_ptr<Surface> PySurfacePreprocessor::Execute(std::shared_ptr<Surface> surface) {
   if (!surface) {
     return shared_ptr<Surface>(Surface::Make(outputFormat));
@@ -2384,5 +2395,24 @@ PYBIND11_MODULE(PyNvCodec, m)
              py::call_guard<py::gil_scoped_release>());
 
     m.def("GetNumGpus", &CudaResMgr::GetNumGpus);
+
+    py::class_<PySurfacePreprocessor>(m, "PySurfacePreprocessor")
+        .def(py::init<uint32_t, uint32_t, Pixel_Format, uint32_t, uint32_t, Pixel_Format, uint32_t>())
+        .def(py::init<uint32_t, uint32_t, Pixel_Format, uint32_t, uint32_t, Pixel_Format, size_t , size_t >())
+        .def("Format", &PySurfacePreprocessor::GetFormat)
+        .def("Execute", &PySurfacePreprocessor::Execute,
+            py::return_value_policy::take_ownership,
+            py::call_guard<py::gil_scoped_release>());
+
+    py::class_<PyBitStreamParser>(m, "PyBitStreamParser")
+        .def(py::init<uint32_t>())
+        .def("Width", &PyBitStreamParser::Width)
+        .def("Height", &PyBitStreamParser::Height)
+        .def("Format", &PyBitStreamParser::Format)
+        .def("Codec", &PyBitStreamParser::Codec)
+        .def("ParseSinglePacket", py::overload_cast<py::array_t<uint8_t> &>(
+              &PyBitStreamParser::ParseSinglePacket),
+              py::arg("packet_in"),
+              py::call_guard<py::gil_scoped_release>());
 }
 #endif

@@ -160,6 +160,18 @@ class DllExport PySurfacePreprocessor {
                         Pixel_Format outFormat,
                         uint32_t gpuID);
 
+  PySurfacePreprocessor(uint32_t in_width, uint32_t in_height,
+  Pixel_Format inFormat, 
+                        uint32_t out_width, uint32_t out_height,
+                        Pixel_Format outFormat,
+                        CUcontext ctx, CUstream str);
+
+  PySurfacePreprocessor(uint32_t in_width, uint32_t in_height,
+  Pixel_Format inFormat, uint32_t out_width, uint32_t out_height,
+                        Pixel_Format outFormat,
+                   size_t ctx, size_t str):
+    PySurfacePreprocessor(in_width, in_height, inFormat, out_width,out_height,outFormat,(CUcontext)ctx, (CUstream)str) {}
+
   std::shared_ptr<Surface> Execute(std::shared_ptr<Surface> surface);
 
   Pixel_Format GetFormat();
