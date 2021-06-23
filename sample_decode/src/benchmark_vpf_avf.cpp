@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <iomanip>  // std::setprecision
 #include <iostream>
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -156,6 +157,7 @@ class Worker {
   int to_height;
   float fps;
   int frame_count = 0;
+  int enc_frame_count = 0;
   int monotonic_frame_count = 0;
   int consecutive_empty_surface_count = 0;
   std::atomic<bool> shutdown_requested{false};
@@ -170,7 +172,8 @@ class Worker {
   std::vector<float> rgb_32f_planar_frame;
   int bufferLen = 2 * 1024 * 1024;
   uint8_t *buffer;
-
+  std::ofstream fout;
+  
  public:
   Worker(int gpu_id, int channel_id, const std::string enc_file, int to_width,
          int to_height, int fps = 25)
@@ -183,6 +186,11 @@ class Worker {
     if (!endsWithCaseInsensitive(enc_file, "AVF"))
       throw std::runtime_error("File type not supported");
     buffer = new uint8_t[bufferLen];
+    std::stringstream unique_file_name;
+    unique_file_name << "dump/out" << std::setfill('0') << std::setw(5)
+                     << gpu_id << "_" << channel_id << ".h264";
+    fout.open(unique_file_name.str());
+    enc_frame_count = 0;
     // buffer.resize(bufferLen);
   };
   bool create_decoder() {
@@ -191,7 +199,7 @@ class Worker {
     while (true) {
       FrameInfo frame;
       frame.totalSize = bufferLen;
-      int rs = reader->getFrame(frame, buffer);
+      int rs = reader->getFrame(frame, buffer);      
       if (rs == 2) {
         // returns error 2 or 9, buffer resize is not handled
         std::cerr << "End of file " << std::endl;
@@ -215,6 +223,8 @@ class Worker {
       }
       if (!parser) break;
       std::vector<uint8_t> packet_in(buffer, buffer + frame.frameSize);
+      enc_frame_count++;
+      fout.write((const char *)packet_in.data(), packet_in.size());
       if (!parser->ParseSinglePacket(packet_in)) break;
       if (!((parser->Width() > 0) && (parser->Height() > 0))) {
         std::cerr << "Width or Height is zero " << std::endl;
@@ -274,6 +284,23 @@ class Worker {
           from_nv12_to_rgb_32f_planar->Execute(nv12_surface);
       if (!rgb_32f_planar_surface) break;
       if (rgb_32f_planar_surface->Empty()) break;
+      if (!rgb_32f_planar_downloader)
+        rgb_32f_planar_downloader.reset(new PySurfaceDownloader(
+            rgb_32f_planar_surface->Width(), rgb_32f_planar_surface->Height(),
+            rgb_32f_planar_surface->PixelFormat(), gpu_id));
+      if (!rgb_32f_planar_downloader->DownloadSingleSurface(rgb_32f_planar_surface,
+                                                            rgb_32f_planar_frame)) break;
+      monotonic_frame_count++;
+      // std::cout << "frame_count: " << frame_count << std::endl;
+      std::stringstream unique_file_name;
+      unique_file_name << "dump/out" << std::setfill('0') << std::setw(5)
+                      << monotonic_frame_count << "_" << std::setfill('0') << std::setw(5) << enc_frame_count << ".ppm";
+      // writePPMFromRgb(rgb_32f_frame.data(), rgb_32f_surface->Height(),
+      //                 rgb_32f_surface->Width(),
+      //                 unique_file_name.str().c_str());
+      writePPMFromRgbPlanar(
+          rgb_32f_planar_frame.data(), rgb_32f_planar_surface->Height(),
+          rgb_32f_planar_surface->Width(), unique_file_name.str().c_str());
       return true;
     }
 
@@ -312,7 +339,8 @@ class Worker {
     }
     std::vector<uint8_t> packet_in(buffer, buffer + frame.frameSize);
     std::shared_ptr<VPF::Surface> nv12_surface;
-
+    enc_frame_count++;
+    fout.write((const char *)packet_in.data(), packet_in.size());
     try {
       nv12_surface = nv_dec->DecodeSurfaceFromPacket(packet_in);
     } catch (const HwResetException &e) {
@@ -344,25 +372,21 @@ class Worker {
         from_nv12_to_rgb_32f_planar->Execute(nv12_surface);
     if (!rgb_32f_planar_surface) return false;
     if (rgb_32f_planar_surface->Empty()) return false;
-    if (!rgb_32f_planar_downloader)
-      rgb_32f_planar_downloader.reset(new PySurfaceDownloader(
-          rgb_32f_planar_surface->Width(), rgb_32f_planar_surface->Height(),
-          rgb_32f_planar_surface->PixelFormat(), gpu_id));
     if (!rgb_32f_planar_downloader->DownloadSingleSurface(rgb_32f_planar_surface,
-                                                          rgb_32f_planar_frame))
+                                                          rgb_32f_planar_frame)) return false;
     frame_count++;
     monotonic_frame_count++;
     // std::cout << "frame_count: " << frame_count << std::endl;
     std::stringstream unique_file_name;
     unique_file_name << "dump/out" << std::setfill('0') << std::setw(5)
-                     << monotonic_frame_count << ".ppm";
+                     << monotonic_frame_count << "_" << std::setfill('0') << std::setw(5) << enc_frame_count << ".ppm";
     // writePPMFromRgb(rgb_32f_frame.data(), rgb_32f_surface->Height(),
     //                 rgb_32f_surface->Width(),
     //                 unique_file_name.str().c_str());
     writePPMFromRgbPlanar(
         rgb_32f_planar_frame.data(), rgb_32f_planar_surface->Height(),
         rgb_32f_planar_surface->Width(), unique_file_name.str().c_str());
-    if (monotonic_frame_count > 1000)
+    if (monotonic_frame_count > 50)
       return false;
     return true;
   }
@@ -387,7 +411,7 @@ class Worker {
     std::cout << "Stop " << this_id << std::endl;
     th.join();
   }
-  ~Worker() { delete[] buffer; };
+  ~Worker() { delete[] buffer; fout.close(); };
 };
 
 std::mutex Worker::global_lock;
@@ -448,7 +472,7 @@ int main(int argc, char const *argv[]) {
   ss << ".";
   // ss << "/1.AVI";
   // ss << "/Merged_20200918_90003.mp4";
-  ss << "/1.AVF";
+  ss << "/2.AVF";
   std::vector<size_t> free_mem_before;
   for (size_t indx = 0; indx < nGpu; indx++) {
     size_t free, total;
